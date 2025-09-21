@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Y-Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-buttons">
+                    <button id="create-room-btn" title="新しいトークルームを作成">+</button>
+                    <button id="join-room-btn" title="既存のトークルームに参加">参加</button>
+                </div>
+            </div>
+            <!-- ★ 構造を2つに分割 -->
+            <div class="sidebar-section">
+                <h2 class="sidebar-title">トークルーム</h2>
+                <ul class="room-list" id="room-list"></ul>
+            </div>
+            <div class="sidebar-section">
+                <h2 class="sidebar-title">オンラインユーザー</h2>
+                <ul class="user-list" id="user-list"></ul>
+            </div>
+        </div>
+
+        <!-- チャットウィンドウ (変更なし) -->
+        <div class="chat-window">
+            <header class="chat-header">
+                <h1 id="current-room-name">トークルームを選択してください</h1>
+            </header>
+            <main class="chat-messages" id="chat-messages-area">
+                <ul id="messages"></ul>
+            </main>
+            <footer class="chat-footer">
+                <form id="form" action=""><input id="input" autocomplete="off" placeholder="メッセージを入力..." /><button>送信</button></form>
+            </footer>
+        </div>
+    </div>
+
+    <!-- ダイアログ (変更なし) -->
+    <dialog id="create-room-dialog">
+        <form id="create-room-form">
+            <h2>新しいトークルームを作成</h2>
+            <label for="new-room-name">ルーム名:</label>
+            <input type="text" id="new-room-name" required>
+            <label for="new-room-password">パスワード:</label>
+            <input type="password" id="new-room-password" required>
+            <div class="dialog-buttons"><button type="submit">作成</button><button type="button" class="cancel-btn">キャンセル</button></div>
+        </form>
+    </dialog>
+    <dialog id="join-room-dialog">
+        <form id="join-room-form">
+            <h2>トークルームに参加</h2>
+            <label for="join-room-name">ルーム名:</label>
+            <input type="text" id="join-room-name" required>
+            <label for="join-room-password">パスワード:</label>
+            <input type="password" id="join-room-password" required>
+            <div class="dialog-buttons"><button type="submit">参加</button><button type="button" class="cancel-btn">キャンセル</button></div>
+        </form>
+    </dialog>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
