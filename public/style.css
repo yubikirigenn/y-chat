@@ -310,3 +310,35 @@ body {
     align-items: center;
     justify-content: space-between; /* 要素間にスペースを空ける */
 }
+/* --- ここから追記 --- */
+
+/* 削除ボタンのスタイル */
+.delete-btn {
+    position: absolute;
+    top: -8px;
+    left: -8px; /* my-messageで反転させるので左側に配置 */
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid #aaa;
+    background-color: white;
+    color: #555;
+    font-size: 14px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    opacity: 0; /* 通常は非表示 */
+    transition: opacity 0.2s;
+    padding: 0;
+}
+
+/* 自分のメッセージの吹き出しにホバーした時だけボタンを表示 */
+.my-message .message-bubble:hover .delete-btn {
+    opacity: 1;
+}
+
+/* 自分のメッセージのときだけ削除ボタンの左右を反転 */
+.my-message .delete-btn {
+    left: auto;
+    right: -8px;
+}
