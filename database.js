@@ -1,7 +1,7 @@
 // dotenv を一番最初に読み込む（ローカル環境用）
 require('dotenv').config();
 
-const { Pool } = require('pg');
+const { Pool } = require('pg'); // Client から Pool に変更
 
 // プール接続を一度だけ作成
 const pool = new Pool({
@@ -23,14 +23,23 @@ async function setupDatabase() {
                 name TEXT PRIMARY KEY,
                 icon_url TEXT NOT NULL DEFAULT '/uploads/icons/default.svg'
             );
+
             CREATE TABLE IF NOT EXISTS rooms (
-                name TEXT PRIMARY KEY, password TEXT, creator TEXT NOT NULL,
-                participants JSONB NOT NULL, is_private BOOLEAN NOT NULL
+                name TEXT PRIMARY KEY,
+                password TEXT,
+                creator TEXT NOT NULL,
+                participants JSONB NOT NULL,
+                is_private BOOLEAN NOT NULL
             );
+
             CREATE TABLE IF NOT EXISTS messages (
-                id TEXT PRIMARY KEY, room_name TEXT NOT NULL,
-                sender_name TEXT NOT NULL, text_content TEXT, image_url TEXT,
-                timestamp TIMESTAMPTZ NOT NULL, read_by JSONB NOT NULL DEFAULT '[]'
+                id TEXT PRIMARY KEY,
+                room_name TEXT NOT NULL,
+                sender_name TEXT NOT NULL,
+                text_content TEXT,
+                image_url TEXT,
+                timestamp TIMESTAMPTZ NOT NULL,
+                read_by JSONB NOT NULL DEFAULT '[]'
             );
         `);
         client.release(); // クライアントをプールに返却
