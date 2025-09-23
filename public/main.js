@@ -7,6 +7,7 @@ function initializeCredentials() { const savedCredentials = localStorage.getItem
 function saveCredentials() { localStorage.setItem('roomCredentials', JSON.stringify(roomCredentials)); }
 function initializeUserName() { const savedName = localStorage.getItem('chatUserName'); if (savedName) { userName = savedName; } else { while (!userName) { userName = prompt("あなたの名前を入力してください"); if (!userName) alert("名前は必須です。"); } localStorage.setItem('chatUserName', userName); } }
 
+// ★★★ ここが修正された createMessageElement 関数 ★★★
 function createMessageElement(msg) {
     const item = document.createElement('li');
     item.className = `message-item ${msg.name === userName ? 'my-message' : 'other-message'}`;
@@ -27,8 +28,18 @@ function createMessageElement(msg) {
         if (isPrivate) { if (readCountWithoutSender >= 1) readStatusText = '既読'; }
         else { if (readCountWithoutSender > 0) readStatusText = `既読 ${readCountWithoutSender}`; }
     }
+    // ★ BUG FIX: アバターの表示を、自分のメッセージと相手のメッセージで分ける
     const avatarUrl = msg.iconUrl || '/uploads/icons/default.svg';
-    item.innerHTML = `<img src="${avatarUrl}" class="message-avatar"><div class="message-wrapper"><div class="sender-name">${msg.name}</div><div class="message-content"><div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div><div class="status-container"><span class="read-status">${readStatusText}</span><span class="message-time">${timeString}</span></div></div></div>`;
+    item.innerHTML = `
+        <img src="${avatarUrl}" class="message-avatar">
+        <div class="message-wrapper">
+            <div class="sender-name">${msg.name}</div>
+            <div class="message-content">
+                <div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div>
+                <div class="status-container"><span class="read-status">${readStatusText}</span><span class="message-time">${timeString}</span></div>
+            </div>
+        </div>
+    `;
     return item;
 }
 
@@ -104,7 +115,6 @@ socket.on('user icon changed', ({ userName: changedUserName, newIconUrl }) => {
     const avatars = document.querySelectorAll(`.message-item[data-sender-name="${changedUserName}"] .message-avatar`);
     avatars.forEach(avatar => { avatar.src = newIconUrl; });
 });
-// ★★★ ここが修正された update user list リスナー ★★★
 socket.on('update user list', (users) => {
     userList.innerHTML = '';
     const me = users.find(user => user.name === userName);
@@ -129,7 +139,11 @@ socket.on('join success', (data) => {
     messages.innerHTML = '';
     if (data.isPrivate !== undefined) { myRoomsInfo[currentRoom] = { isPrivate: data.isPrivate }; }
     const unreadMessageIds = [];
-    data.history.forEach(msg => { const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : []; if (!readers.includes(userName)) { unreadMessageIds.push(msg.id); } messages.appendChild(createMessageElement(msg)); });
+    data.history.forEach(msg => {
+        const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : [];
+        if (!readers.includes(userName)) { unreadMessageIds.push(msg.id); }
+        messages.appendChild(createMessageElement(msg));
+    });
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
     if (unreadMessageIds.length > 0) { socket.emit('mark as read', { roomName: currentRoom, messageIds: unreadMessageIds }); }
     if (data.roomName === lastJoinAttempt.roomName && lastJoinAttempt.password !== null) { roomCredentials[data.roomName] = lastJoinAttempt.password; saveCredentials(); }
@@ -139,7 +153,18 @@ socket.on('join success', (data) => {
 socket.on('join failure', (errorMessage) => alert(errorMessage));
 socket.on('chat message', (msg) => { const messageRoom = msg.room; const messageData = msg.data; if (messageRoom === currentRoom) { messages.appendChild(createMessageElement(messageData)); socket.emit('mark as read', { roomName: currentRoom, messageIds: [messageData.id] }); } else { unreadCounts[messageRoom] = (unreadCounts[messageRoom] || 0) + 1; const li = document.querySelector(`.room-list li[data-room="${messageRoom}"]`); if (li) { let badge = li.querySelector('.unread-badge'); if (!badge) { badge = document.createElement('span'); badge.className = 'unread-badge'; li.appendChild(badge); } badge.textContent = unreadCounts[messageRoom]; } } });
 socket.on('message deleted', ({ messageId }) => { const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`); if (messageElement) { messageElement.remove(); } });
-socket.on('update read status', ({ messageId, readers }) => { const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`); if (messageElement && messageElement.classList.contains('my-message')) { let readStatusEl = messageElement.querySelector('.read-status'); if (readStatusEl) { const readCountWithoutSender = readers.filter(reader => reader !== userName).length; const isPrivate = myRoomsInfo[currentRoom] ? myRoomsInfo[currentRoom].isPrivate : false; if (isPrivate) { if (readCountWithoutSender >= 1) readStatusEl.textContent = '既読'; } else { if (readCountWithoutSender > 0) { readStatusEl.textContent = `既読 ${readCountWithoutSender}`; } else { readStatusEl.textContent = ''; } } } } });
+socket.on('update read status', ({ messageId, readers }) => {
+    const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);
+    if (messageElement && messageElement.classList.contains('my-message')) {
+        let readStatusEl = messageElement.querySelector('.read-status');
+        if (readStatusEl) {
+            const readCountWithoutSender = readers.filter(reader => reader !== userName).length;
+            const isPrivate = myRoomsInfo[currentRoom] ? myRoomsInfo[currentRoom].isPrivate : false;
+            if (isPrivate) { if (readCountWithoutSender >= 1) readStatusEl.textContent = '既読'; }
+            else { if (readCountWithoutSender > 0) { readStatusEl.textContent = `既読 ${readCountWithoutSender}`; } else { readStatusEl.textContent = ''; } }
+        }
+    }
+});
 
 // --- 初期化処理 ---
 async function main() {
@@ -147,4 +172,4 @@ async function main() {
     initializeCredentials();
     socket.emit('user connected', userName);
 }
-main();
+main();``
