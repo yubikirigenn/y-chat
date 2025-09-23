@@ -32,21 +32,19 @@ function createMessageElement(msg) {
     // ★★★ 新しいHTML構造 ★★★
     item.innerHTML = `
         <img src="${avatarUrl}" class="message-avatar">
-        <div class="message-body-wrapper">
-            <div class="sender-name">${msg.name}</div>
-            <div class="message-content">
-                <div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div>
-                <div class="status-container">
-                    <span class="read-status">${readStatusText}</span>
-                    <span class="message-time">${timeString}</span>
-                </div>
+        <div class="sender-name">${msg.name}</div>
+        <div class="message-body">
+            <div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div>
+            <div class="status-container">
+                <span class="read-status">${readStatusText}</span>
+                <span class="message-time">${timeString}</span>
             </div>
         </div>
     `;
     return item;
 }
 
-function renderRoomList(rooms, activeRoom) { /* ...変更なし... */ }
+function renderRoomList(rooms, activeRoom) { /* ... */ }
 // --- イベントリスナー --- (変更なし)
 // --- Socket.IOイベント --- (変更なし)
 // --- 初期化処理 --- (変更なし)
