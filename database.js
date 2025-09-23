@@ -3,19 +3,9 @@ require('dotenv').config();
 
 const { Pool } = require('pg');
 
-// デバッグ用に、どの接続文字列が使われているかをログに出力
-console.log("--- DATABASE CONNECTION DEBUG ---");
-console.log("DATABASE_URL from env:", process.env.DATABASE_URL); // 古い名前（ローカル用）
-console.log("SUPABASE_DATABASE_URL from env:", process.env.SUPABASE_DATABASE_URL); // 新しい名前（Render用）
-console.log("---------------------------------");
-
-
-// ★★★ Renderの新しい環境変数名を優先して使用する ★★★
-const CONNECTION_STRING = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
-
 // プール接続を一度だけ作成
 const pool = new Pool({
-    connectionString: CONNECTION_STRING,
+    connectionString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false // RenderからSupabaseへの接続に必要
     }
