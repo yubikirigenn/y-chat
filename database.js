@@ -1,16 +1,16 @@
 // dotenv を一番最初に読み込む
 require('dotenv').config();
-
-const { Pool } = require('pg'); // Client から Pool に変更
-
-// プール接続を一度だけ作成
+const { Pool } = require('pg');
+// ★★★ RenderがどのURLを使っているか、ログに強制的に表示させる ★★★
+console.log("--- DATABASE CONNECTION DEBUG ---");
+console.log("DATABASE_URL from env:", process.env.DATABASE_URL);
+console.log("---------------------------------");
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false // RenderからSupabaseへの接続に必要
-    }
+connectionString: process.env.DATABASE_URL,
+ssl: {
+rejectUnauthorized: false
+}
 });
-
 async function setupDatabase() {
     try {
         // プールからクライアントを取得してテスト接続
