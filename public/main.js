@@ -1,8 +1,5 @@
 const socket = io();
-
-// HTML要素の取得
 const roomList = document.getElementById('room-list'); const userList = document.getElementById('user-list'); const messages = document.getElementById('messages'); const form = document.getElementById('form'); const input = document.getElementById('input'); const currentRoomNameEl = document.getElementById('current-room-name'); const chatMessagesArea = document.getElementById('chat-messages-area'); const createRoomBtn = document.getElementById('create-room-btn'); const createRoomDialog = document.getElementById('create-room-dialog'); const createRoomForm = document.getElementById('create-room-form'); const joinRoomBtn = document.getElementById('join-room-btn'); const joinRoomDialog = document.getElementById('join-room-dialog'); const joinRoomForm = document.getElementById('join-room-form'); const cancelBtns = document.querySelectorAll('.cancel-btn'); const imageUploadBtn = document.getElementById('image-upload-btn'); const imageInput = document.getElementById('image-input'); const iconInput = document.getElementById('icon-input');
-
 let userName = ''; let currentRoom = ''; let roomCredentials = {}; let lastJoinAttempt = { roomName: null, password: null }; const unreadCounts = {}; let myRoomsInfo = {};
 let myIconUrl = '/uploads/icons/default.svg';
 
@@ -30,7 +27,7 @@ function createMessageElement(msg) {
         if (isPrivate) { if (readCountWithoutSender >= 1) readStatusText = '既読'; }
         else { if (readCountWithoutSender > 0) readStatusText = `既読 ${readCountWithoutSender}`; }
     }
-    item.innerHTML = `<img src="${msg.iconUrl}" class="message-avatar"><div class="message-wrapper"><div class="sender-name">${msg.name}</div><div class="message-content"><div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div><div class="status-container"><span class="read-status">${readStatusText}</span><span class="message-time">${timeString}</span></div></div></div>`;
+    item.innerHTML = `<img src="${msg.iconUrl || '/uploads/icons/default.svg'}" class="message-avatar"><div class="message-wrapper"><div class="sender-name">${msg.name}</div><div class="message-content"><div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div><div class="status-container"><span class="read-status">${readStatusText}</span><span class="message-time">${timeString}</span></div></div></div>`;
     return item;
 }
 
@@ -55,7 +52,18 @@ joinRoomBtn.addEventListener('click', () => joinRoomDialog.showModal());
 cancelBtns.forEach(btn => { btn.addEventListener('click', () => { createRoomDialog.close(); joinRoomDialog.close(); }); });
 createRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('new-room-name').value.trim(); const password = document.getElementById('new-room-password').value.trim(); if (roomName && password) { socket.emit('create room', { roomName, password, creator: userName }); createRoomForm.reset(); createRoomDialog.close(); } });
 joinRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('join-room-name').value.trim(); const password = document.getElementById('join-room-password').value.trim(); if (roomName && password) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); joinRoomForm.reset(); joinRoomDialog.close(); } });
-roomList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) { const roomName = li.dataset.room; if (roomName === currentRoom) return; const isPrivate = li.dataset.isprivate === 'true'; if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); } if (isPrivate) { lastJoinAttempt = { roomName, password: null }; socket.emit('attempt join room', { roomName, password: null }); } else { let password = roomCredentials[roomName] || prompt(`'${roomName}' のパスワードを入力してください:`); if (password !== null) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); } } } });
+roomList.addEventListener('click', (e) => {
+    const li = e.target.closest('li');
+    if (li) {
+        const roomName = li.dataset.room;
+        if (roomName === currentRoom) return;
+        const isPrivate = li.dataset.isprivate === 'true';
+        if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); }
+        lastJoinAttempt = { roomName, password: isPrivate ? null : (roomCredentials[roomName] || prompt(`'${roomName}' のパスワードを入力してください:`)) };
+        if (!isPrivate && lastJoinAttempt.password === null) return;
+        socket.emit('attempt join room', lastJoinAttempt);
+    }
+});
 userList.addEventListener('click', (e) => {
     if (e.target.id === 'my-avatar') { iconInput.click(); return; }
     if (e.target.classList.contains('edit-name-btn')) {
@@ -77,13 +85,12 @@ imageInput.addEventListener('change', async (e) => { const file = e.target.files
 iconInput.addEventListener('change', async (e) => { const file = e.target.files[0]; if (!file) return; const formData = new FormData(); formData.append('icon', file); formData.append('userName', userName); try { const response = await fetch('/upload-icon', { method: 'POST', body: formData }); const result = await response.json(); if (response.ok) { myIconUrl = result.iconUrl; } else { alert('アイコンのアップロードに失敗しました。'); } } catch (error) { console.error('アイコンアップロードエラー:', error); } e.target.value = null; });
 
 // --- Socket.IOイベント ---
-socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
+socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; socket.emit('request user list'); });
 socket.on('user icon changed', ({ userName: changedUserName, newIconUrl }) => {
-    if (changedUserName === userName) { myIconUrl = newIconUrl; }
-    socket.emit('request user list'); // 誰かのアイコンが変わったらリストを更新
-    // チャット画面上の全アバターを更新
+    if (changedUserName === userName) myIconUrl = newIconUrl;
     const avatars = document.querySelectorAll(`.message-item[data-sender-name="${changedUserName}"] .message-avatar`);
     avatars.forEach(avatar => { avatar.src = newIconUrl; });
+    socket.emit('request user list');
 });
 socket.on('update user list', (users) => {
     userList.innerHTML = '';
@@ -103,6 +110,7 @@ socket.on('update user list', (users) => {
     });
 });
 socket.on('update rooms', (rooms) => { myRoomsInfo = {}; rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.isPrivate }; }); renderRoomList(rooms, currentRoom); });
+socket.on('force refresh rooms', () => socket.emit('user connected', userName));
 socket.on('join success', (data) => {
     currentRoom = data.roomName; currentRoomNameEl.textContent = currentRoom;
     messages.innerHTML = '';

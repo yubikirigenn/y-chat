@@ -22,10 +22,14 @@ app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
     } else { res.status(400).send('アップロード失敗'); }
 });
 
-let db;
-const onlineUsers = {};
+let db; const onlineUsers = {};
 
-async function broadcastUserList() { try { const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1::text[])', [Object.values(onlineUsers)]); io.emit('update user list', usersResult.rows); } catch(e) { console.error("ユーザーリストの取得に失敗:", e); } }
+async function broadcastUserList() {
+    try {
+        const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1::text[])', [Object.values(onlineUsers)]);
+        io.emit('update user list', usersResult.rows);
+    } catch(e) { console.error("ユーザーリストの取得に失敗:", e); }
+}
 async function sendRoomList(socket) {
     const userName = socket.userName; if (!userName) return;
     try {
@@ -98,16 +102,23 @@ io.on('connection', (socket) => {
             await db.query('UPDATE users SET name = $1 WHERE name = $2', [newName, oldName]);
             const affectedRoomsResult = await db.query('SELECT name, participants FROM rooms WHERE participants @> $1', [`["${oldName}"]`]);
             for (const room of affectedRoomsResult.rows) {
-                const newParticipants = room.participants.map(p => p === oldName ? newName : p);
-                await db.query('UPDATE rooms SET participants = $1, creator = (CASE WHEN creator = $2 THEN $3 ELSE creator END) WHERE name = $4', [JSON.stringify(newParticipants), oldName, newName, room.name]);
+                let newParticipants = room.participants.map(p => p === oldName ? newName : p);
+                let newRoomName = room.name;
+                if (room.is_private) {
+                    newRoomName = newParticipants.sort().join('-');
+                }
+                await db.query('UPDATE rooms SET name = $1, participants = $2, creator = (CASE WHEN creator = $3 THEN $4 ELSE creator END) WHERE name = $5', [newRoomName, JSON.stringify(newParticipants), oldName, newName, room.name]);
             }
             await db.query('UPDATE messages SET sender_name = $1 WHERE sender_name = $2', [newName, oldName]);
             await db.query('COMMIT');
             onlineUsers[socket.id] = newName; socket.userName = newName;
-            broadcastUserList(); sendRoomList(socket);
+            broadcastUserList();
+            // 全てのクライアントにルームリスト更新を強制
+            io.emit('force refresh rooms');
             console.log(`名前が変更されました: ${oldName} -> ${newName}`);
         } catch (e) { await db.query('ROLLBACK'); console.error('名前の変更に失敗:', e); }
     });
+    socket.on('request user list', () => broadcastUserList());
     socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUserList(); });
 });
 
@@ -116,4 +127,5 @@ async function startServer() {
     const PORT = process.env.PORT || 3000;
     server.listen(PORT, () => console.log(`サーバーがポート${PORT}で起動しました`));
 }
+
 startServer();
