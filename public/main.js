@@ -36,7 +36,7 @@ function renderRoomList(rooms, activeRoom) {
     rooms.forEach(room => {
         const li = document.createElement('li');
         li.dataset.room = room.name;
-        li.dataset.isprivate = room.isPrivate;
+        li.dataset.isprivate = room.is_private; // ★ is_private に統一
         const nameSpan = document.createElement('span');
         nameSpan.textContent = room.name;
         li.appendChild(nameSpan);
@@ -52,19 +52,29 @@ joinRoomBtn.addEventListener('click', () => joinRoomDialog.showModal());
 cancelBtns.forEach(btn => { btn.addEventListener('click', () => { createRoomDialog.close(); joinRoomDialog.close(); }); });
 createRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('new-room-name').value.trim(); const password = document.getElementById('new-room-password').value.trim(); if (roomName && password) { socket.emit('create room', { roomName, password, creator: userName }); createRoomForm.reset(); createRoomDialog.close(); } });
 joinRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('join-room-name').value.trim(); const password = document.getElementById('join-room-password').value.trim(); if (roomName && password) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); joinRoomForm.reset(); joinRoomDialog.close(); } });
+
+// ★★★ ここが修正された roomList のイベントリスナー ★★★
 roomList.addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (li) {
         const roomName = li.dataset.room;
         if (roomName === currentRoom) return;
         const isPrivate = li.dataset.isprivate === 'true';
-        if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); }
+
+        if (unreadCounts[roomName] > 0) {
+            unreadCounts[roomName] = 0;
+            const badge = li.querySelector('.unread-badge');
+            if (badge) badge.remove();
+        }
+
         if (isPrivate) {
+            // 個人チャットはパスワード不要
             lastJoinAttempt = { roomName, password: null };
             socket.emit('attempt join room', { roomName, password: null });
         } else {
+            // グループチャットはパスワード処理
             let password = roomCredentials[roomName] || prompt(`'${roomName}' のパスワードを入力してください:`);
-            if (password !== null) {
+            if (password !== null) { // キャンセルされなかった場合
                 lastJoinAttempt = { roomName, password };
                 socket.emit('attempt join room', { roomName, password });
             }
@@ -116,14 +126,16 @@ socket.on('update user list', (users) => {
         userList.appendChild(li);
     });
 });
-socket.on('update rooms', (rooms) => { myRoomsInfo = {}; rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.isPrivate }; }); renderRoomList(rooms, currentRoom); });
+socket.on('update rooms', (rooms) => {
+    myRoomsInfo = {};
+    rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; }); // ★ is_private に統一
+    renderRoomList(rooms, currentRoom);
+});
 socket.on('force refresh rooms', () => socket.emit('user connected', userName));
 socket.on('join success', (data) => {
     currentRoom = data.roomName; currentRoomNameEl.textContent = currentRoom;
     messages.innerHTML = '';
-    if (data.isPrivate !== undefined) {
-        myRoomsInfo[currentRoom] = { isPrivate: data.isPrivate };
-    }
+    if (data.isPrivate !== undefined) { myRoomsInfo[currentRoom] = { isPrivate: data.isPrivate }; }
     const unreadMessageIds = [];
     data.history.forEach(msg => {
         const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : [];
