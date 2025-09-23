@@ -28,10 +28,10 @@ function createMessageElement(msg) {
         if (isPrivate) { if (readCountWithoutSender >= 1) readStatusText = '既読'; }
         else { if (readCountWithoutSender > 0) readStatusText = `既読 ${readCountWithoutSender}`; }
     }
-    const avatarUrl = msg.iconUrl || '/uploads/icons/default.svg';
-    // ★ BUG FIX: アバターの表示ロジックを修正
+    // ★ BUG FIX: アバターの表示を、自分のメッセージと相手のメッセージで分ける
+    const avatarUrl = isMyMessage ? myIconUrl : msg.iconUrl;
     item.innerHTML = `
-        <img src="${avatarUrl}" class="message-avatar">
+        <img src="${avatarUrl || '/uploads/icons/default.svg'}" class="message-avatar">
         <div class="message-wrapper">
             <div class="sender-name">${msg.name}</div>
             <div class="message-content">
