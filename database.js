@@ -1,16 +1,26 @@
-// dotenv を一番最初に読み込む
+// dotenv を一番最初に読み込む（ローカル環境用）
 require('dotenv').config();
+
 const { Pool } = require('pg');
-// ★★★ RenderがどのURLを使っているか、ログに強制的に表示させる ★★★
+
+// デバッグ用に、どの接続文字列が使われているかをログに出力
 console.log("--- DATABASE CONNECTION DEBUG ---");
-console.log("DATABASE_URL from env:", process.env.DATABASE_URL);
+console.log("DATABASE_URL from env:", process.env.DATABASE_URL); // 古い名前（ローカル用）
+console.log("SUPABASE_DATABASE_URL from env:", process.env.SUPABASE_DATABASE_URL); // 新しい名前（Render用）
 console.log("---------------------------------");
+
+
+// ★★★ Renderの新しい環境変数名を優先して使用する ★★★
+const CONNECTION_STRING = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+
+// プール接続を一度だけ作成
 const pool = new Pool({
-connectionString: process.env.DATABASE_URL,
-ssl: {
-rejectUnauthorized: false
-}
+    connectionString: CONNECTION_STRING,
+    ssl: {
+        rejectUnauthorized: false // RenderからSupabaseへの接続に必要
+    }
 });
+
 async function setupDatabase() {
     try {
         // プールからクライアントを取得してテスト接続
@@ -35,10 +45,10 @@ async function setupDatabase() {
         `);
         client.release(); // クライアントをプールに返却
         console.log('データベースのテーブル準備が完了しました。');
-        return pool; // ★ clientではなくpoolを返す
+        return pool; // clientではなくpoolを返す
     } catch (e) {
         console.error('データベースのセットアップに失敗しました:', e);
-        process.exit(1);
+        process.exit(1); // エラーでプロセスを終了
     }
 }
 
