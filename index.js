@@ -1,31 +1,14 @@
 // dotenv を一番最初に読み込む
 require('dotenv').config();
 
-const express = require('express');
-const app = express();
-const http = require('http');
-const server = http.createServer(app);
-const { Server } = require("socket.io");
-const io = new Server(server);
-const multer = require('multer');
-const { setupDatabase } = require('./database.js');
-const path = require('path');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
+const express = require('express'); const app = express(); const http = require('http'); const server = http.createServer(app); const { Server } = require("socket.io"); const io = new Server(server); const multer = require('multer'); const { setupDatabase } = require('./database.js'); const path = require('path');
+const cloudinary = require('cloudinary').v2; const { CloudinaryStorage } = require('multer-storage-cloudinary');
 app.use(express.static('public'));
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
+cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
 const storage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: 'y-chat/messages', format: async (req, file) => 'png' } });
 const upload = multer({ storage: storage });
 const iconStorage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: 'y-chat/icons', format: async (req, file) => 'png', public_id: (req, file) => `icon-${req.body.userName}` } });
 const uploadIcon = multer({ storage: iconStorage });
-
 app.post('/upload', upload.single('image'), (req, res) => { if (req.file) res.json({ imageUrl: req.file.path }); else res.status(400).send('ファイルのアップロードに失敗しました。'); });
 app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
     const userName = req.body.userName;
@@ -42,13 +25,7 @@ app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
 let db;
 const onlineUsers = {};
 
-async function broadcastUserList() {
-    try {
-        const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1::text[])', [Object.values(onlineUsers)]);
-        io.emit('update user list', usersResult.rows);
-    } catch(e) { console.error("ユーザーリストの取得に失敗:", e); }
-}
-
+async function broadcastUserList() { try { const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1::text[])', [Object.values(onlineUsers)]); io.emit('update user list', usersResult.rows); } catch(e) { console.error("ユーザーリストの取得に失敗:", e); } }
 async function sendRoomList(socket) {
     const userName = socket.userName; if (!userName) return;
     try {
@@ -56,31 +33,20 @@ async function sendRoomList(socket) {
         socket.emit('update rooms', myRoomsResult.rows);
     } catch(e) { console.error("ルームリストの取得に失敗:", e); }
 }
-
-function joinRoom(socket, roomName) {
-    if (socket.currentRoom) { socket.leave(socket.currentRoom); }
-    socket.join(roomName);
-    socket.currentRoom = roomName;
-}
+function joinRoom(socket, roomName) { if (socket.currentRoom) { socket.leave(socket.currentRoom); } socket.join(roomName); socket.currentRoom = roomName; }
 
 io.on('connection', (socket) => {
     socket.on('user connected', async (userName) => {
-        onlineUsers[socket.id] = userName;
-        socket.userName = userName;
+        onlineUsers[socket.id] = userName; socket.userName = userName;
         await db.query('INSERT INTO users (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [userName]);
         const userResult = await db.query('SELECT icon_url FROM users WHERE name = $1', [userName]);
         if (userResult.rows.length > 0) socket.emit('my info', { iconUrl: userResult.rows[0].icon_url });
-        sendRoomList(socket);
-        broadcastUserList();
+        sendRoomList(socket); broadcastUserList();
     });
-
     socket.on('create room', async ({ roomName, password, creator }) => {
         await db.query('INSERT INTO rooms (name, password, creator, participants, is_private) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING', [roomName, password, creator, JSON.stringify([creator]), false]);
-        joinRoom(socket, roomName);
-        sendRoomList(socket);
-        socket.emit('join success', { roomName, history: [] });
+        joinRoom(socket, roomName); sendRoomList(socket); socket.emit('join success', { roomName, history: [] });
     });
-
     socket.on('start private chat', async (targetUserName) => {
         const initiatorName = socket.userName; if (targetUserName === initiatorName) return;
         const roomName = [initiatorName, targetUserName].sort().join('-');
@@ -88,11 +54,8 @@ io.on('connection', (socket) => {
         const historyResult = await db.query(`SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as imageUrl, m.timestamp as time, m.read_by, u.icon_url as iconUrl FROM messages m JOIN users u ON m.sender_name = u.name WHERE m.room_name = $1 ORDER BY m.timestamp ASC`, [roomName]);
         const targetSocketId = Object.keys(onlineUsers).find(id => onlineUsers[id] === targetUserName);
         if (targetSocketId) { const targetSocket = io.sockets.sockets.get(targetSocketId); joinRoom(targetSocket, roomName); sendRoomList(targetSocket); targetSocket.emit('join success', { roomName, history: historyResult.rows }); }
-        joinRoom(socket, roomName);
-        sendRoomList(socket);
-        socket.emit('join success', { roomName, history: historyResult.rows });
+        joinRoom(socket, roomName); sendRoomList(socket); socket.emit('join success', { roomName, history: historyResult.rows });
     });
-
     socket.on('attempt join room', async ({ roomName, password }) => {
         const userName = socket.userName;
         const roomResult = await db.query('SELECT * FROM rooms WHERE name = $1', [roomName]);
@@ -100,16 +63,11 @@ io.on('connection', (socket) => {
         const room = roomResult.rows[0];
         const isAuthorized = room.is_private || room.creator === userName || room.password === password;
         if (!isAuthorized) return socket.emit('join failure', 'パスワードが間違っています。');
-        if (!room.participants.includes(userName)) {
-            room.participants.push(userName);
-            await db.query('UPDATE rooms SET participants = $1 WHERE name = $2', [JSON.stringify(room.participants), roomName]);
-            sendRoomList(socket);
-        }
+        if (!room.participants.includes(userName)) { room.participants.push(userName); await db.query('UPDATE rooms SET participants = $1 WHERE name = $2', [JSON.stringify(room.participants), roomName]); sendRoomList(socket); }
         joinRoom(socket, roomName);
         const historyResult = await db.query(`SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as imageUrl, m.timestamp as time, m.read_by, u.icon_url as iconUrl FROM messages m JOIN users u ON m.sender_name = u.name WHERE m.room_name = $1 ORDER BY m.timestamp ASC`, [roomName]);
         socket.emit('join success', { roomName, history: historyResult.rows });
     });
-
     socket.on('chat message', async (msg) => {
         const roomName = socket.currentRoom; if (!roomName) return;
         const senderResult = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]);
@@ -120,13 +78,8 @@ io.on('connection', (socket) => {
         const clientMessageData = { id: messageData.id, name: messageData.sender_name, text: messageData.text_content, imageUrl: messageData.image_url, time: messageData.timestamp, read_by: messageData.read_by, iconUrl: senderIcon };
         const messagePacket = { room: roomName, data: clientMessageData };
         const roomResult = await db.query('SELECT participants FROM rooms WHERE name = $1', [roomName]);
-        if (roomResult.rows.length > 0) {
-            const participants = roomResult.rows[0].participants;
-            const userSocketMap = Object.entries(onlineUsers).reduce((acc, [id, name]) => { acc[name] = id; return acc; }, {});
-            participants.forEach(pName => { const targetSocketId = userSocketMap[pName]; if (targetSocketId) { io.to(targetSocketId).emit('chat message', messagePacket); } });
-        }
+        if (roomResult.rows.length > 0) { const participants = roomResult.rows[0].participants; const userSocketMap = Object.entries(onlineUsers).reduce((acc, [id, name]) => { acc[name] = id; return acc; }, {}); participants.forEach(pName => { const targetSocketId = userSocketMap[pName]; if (targetSocketId) { io.to(targetSocketId).emit('chat message', messagePacket); } }); }
     });
-
     socket.on('mark as read', async ({ roomName, messageIds }) => {
         const userName = socket.userName; if (!userName || !messageIds || messageIds.length === 0) return;
         try {
@@ -137,17 +90,10 @@ io.on('connection', (socket) => {
             }
         } catch (e) { console.error('既読情報の更新に失敗:', e); }
     });
-
-    socket.on('delete message', async ({ roomId, messageId }) => {
-        const result = await db.query('DELETE FROM messages WHERE id = $1 AND sender_name = $2', [messageId, socket.userName]);
-        if (result.rowCount > 0) { io.to(roomId).emit('message deleted', { messageId }); }
-    });
-    
-    // ★★★ change username リスナーのDB操作を修正 ★★★
+    socket.on('delete message', async ({ roomId, messageId }) => { const result = await db.query('DELETE FROM messages WHERE id = $1 AND sender_name = $2', [messageId, socket.userName]); if (result.rowCount > 0) { io.to(roomId).emit('message deleted', { messageId }); } });
     socket.on('change username', async ({ oldName, newName }) => {
         if (!oldName || !newName || oldName === newName) return;
         try {
-            // DB更新処理をトランザクション化
             await db.query('BEGIN');
             await db.query('UPDATE users SET name = $1 WHERE name = $2', [newName, oldName]);
             const affectedRoomsResult = await db.query('SELECT name, participants FROM rooms WHERE participants @> $1', [`["${oldName}"]`]);
@@ -157,25 +103,12 @@ io.on('connection', (socket) => {
             }
             await db.query('UPDATE messages SET sender_name = $1 WHERE sender_name = $2', [newName, oldName]);
             await db.query('COMMIT');
-
-            // サーバー上の情報を更新
-            onlineUsers[socket.id] = newName;
-            socket.userName = newName;
-
-            // 全員にオンラインユーザーリストとルームリストの更新を通知
-            broadcastUserList();
-            sendRoomList(socket);
+            onlineUsers[socket.id] = newName; socket.userName = newName;
+            broadcastUserList(); sendRoomList(socket);
             console.log(`名前が変更されました: ${oldName} -> ${newName}`);
-        } catch (e) {
-            await db.query('ROLLBACK');
-            console.error('名前の変更に失敗:', e);
-        }
+        } catch (e) { await db.query('ROLLBACK'); console.error('名前の変更に失敗:', e); }
     });
-
-    socket.on('disconnect', () => {
-        delete onlineUsers[socket.id];
-        broadcastUserList();
-    });
+    socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUserList(); });
 });
 
 async function startServer() {
@@ -183,5 +116,4 @@ async function startServer() {
     const PORT = process.env.PORT || 3000;
     server.listen(PORT, () => console.log(`サーバーがポート${PORT}で起動しました`));
 }
-
 startServer();
