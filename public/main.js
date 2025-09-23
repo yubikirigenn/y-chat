@@ -52,19 +52,13 @@ joinRoomBtn.addEventListener('click', () => joinRoomDialog.showModal());
 cancelBtns.forEach(btn => { btn.addEventListener('click', () => { createRoomDialog.close(); joinRoomDialog.close(); }); });
 createRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('new-room-name').value.trim(); const password = document.getElementById('new-room-password').value.trim(); if (roomName && password) { socket.emit('create room', { roomName, password, creator: userName }); createRoomForm.reset(); createRoomDialog.close(); } });
 joinRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('join-room-name').value.trim(); const password = document.getElementById('join-room-password').value.trim(); if (roomName && password) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); joinRoomForm.reset(); joinRoomDialog.close(); } });
-
-// ★★★ ここが修正された roomList のイベントリスナー ★★★
 roomList.addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (li) {
         const roomName = li.dataset.room;
         if (roomName === currentRoom) return;
         const isPrivate = li.dataset.isprivate === 'true';
-        if (unreadCounts[roomName] > 0) {
-            unreadCounts[roomName] = 0;
-            const badge = li.querySelector('.unread-badge');
-            if (badge) badge.remove();
-        }
+        if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); }
         if (isPrivate) {
             lastJoinAttempt = { roomName, password: null };
             socket.emit('attempt join room', { roomName, password: null });
@@ -101,9 +95,9 @@ iconInput.addEventListener('change', async (e) => { const file = e.target.files[
 socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; socket.emit('request user list'); });
 socket.on('user icon changed', ({ userName: changedUserName, newIconUrl }) => {
     if (changedUserName === userName) { myIconUrl = newIconUrl; }
+    socket.emit('request user list');
     const avatars = document.querySelectorAll(`.message-item[data-sender-name="${changedUserName}"] .message-avatar`);
     avatars.forEach(avatar => { avatar.src = newIconUrl; });
-    socket.emit('request user list');
 });
 socket.on('update user list', (users) => {
     userList.innerHTML = '';
@@ -127,6 +121,9 @@ socket.on('force refresh rooms', () => socket.emit('user connected', userName));
 socket.on('join success', (data) => {
     currentRoom = data.roomName; currentRoomNameEl.textContent = currentRoom;
     messages.innerHTML = '';
+    if (data.isPrivate !== undefined) {
+        myRoomsInfo[currentRoom] = { isPrivate: data.isPrivate };
+    }
     const unreadMessageIds = [];
     data.history.forEach(msg => {
         const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : [];
