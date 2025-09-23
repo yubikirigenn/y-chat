@@ -47,21 +47,36 @@ io.on('connection', (socket) => {
         if (userResult.rows.length > 0) socket.emit('my info', { iconUrl: userResult.rows[0].icon_url });
         sendRoomList(socket); broadcastUserList();
     });
+    
+    // ★★★ create room を修正 ★★★
     socket.on('create room', async ({ roomName, password, creator }) => {
         await db.query('INSERT INTO rooms (name, password, creator, participants, is_private) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING', [roomName, password, creator, JSON.stringify([creator]), false]);
-        joinRoom(socket, roomName); sendRoomList(socket); socket.emit('join success', { roomName, history: [], isPrivate: false });
+        joinRoom(socket, roomName);
+        sendRoomList(socket);
+        socket.emit('join success', { roomName, history: [], isPrivate: false });
     });
+
+    // ★★★ start private chat を修正 ★★★
     socket.on('start private chat', async (targetUserName) => {
         const initiatorName = socket.userName; if (targetUserName === initiatorName) return;
         const roomName = [initiatorName, targetUserName].sort().join('-');
         await db.query('INSERT INTO rooms (name, creator, participants, is_private) VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING', [roomName, initiatorName, JSON.stringify([initiatorName, targetUserName]), true]);
+        
+        // アイコン情報をJOINして履歴を取得
         const historyResult = await db.query(`SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as imageUrl, m.timestamp as time, m.read_by, u.icon_url as iconUrl FROM messages m JOIN users u ON m.sender_name = u.name WHERE m.room_name = $1 ORDER BY m.timestamp ASC`, [roomName]);
+        
         const targetSocketId = Object.keys(onlineUsers).find(id => onlineUsers[id] === targetUserName);
-        if (targetSocketId) { const targetSocket = io.sockets.sockets.get(targetSocketId); joinRoom(targetSocket, roomName); sendRoomList(targetSocket); targetSocket.emit('join success', { roomName, history: historyResult.rows, isPrivate: true }); }
-        joinRoom(socket, roomName); sendRoomList(socket); socket.emit('join success', { roomName, history: historyResult.rows, isPrivate: true });
+        if (targetSocketId) {
+            const targetSocket = io.sockets.sockets.get(targetSocketId);
+            joinRoom(targetSocket, roomName);
+            sendRoomList(targetSocket);
+            targetSocket.emit('join success', { roomName, history: historyResult.rows, isPrivate: true });
+        }
+        joinRoom(socket, roomName);
+        sendRoomList(socket);
+        socket.emit('join success', { roomName, history: historyResult.rows, isPrivate: true });
     });
 
-    // ★★★ ここが修正された attempt join room ★★★
     socket.on('attempt join room', async ({ roomName, password }) => {
         const userName = socket.userName;
         const roomResult = await db.query('SELECT * FROM rooms WHERE name = $1', [roomName]);
@@ -69,23 +84,11 @@ io.on('connection', (socket) => {
         const room = roomResult.rows[0];
         const isAuthorized = room.is_private || room.creator === userName || room.password === password;
         if (!isAuthorized) return socket.emit('join failure', 'パスワードが間違っています。');
-        if (!room.participants.includes(userName)) {
-            room.participants.push(userName);
-            await db.query('UPDATE rooms SET participants = $1 WHERE name = $2', [JSON.stringify(room.participants), roomName]);
-            sendRoomList(socket);
-        }
+        if (!room.participants.includes(userName)) { room.participants.push(userName); await db.query('UPDATE rooms SET participants = $1 WHERE name = $2', [JSON.stringify(room.participants), roomName]); sendRoomList(socket); }
         joinRoom(socket, roomName);
-        // ★ BUG FIX: 履歴取得時にアイコン情報もJOINして取得
-        const historyResult = await db.query(`
-            SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as imageUrl, m.timestamp as time, m.read_by, u.icon_url as iconUrl
-            FROM messages m
-            JOIN users u ON m.sender_name = u.name
-            WHERE m.room_name = $1
-            ORDER BY m.timestamp ASC
-        `, [roomName]);
+        const historyResult = await db.query(`SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as imageUrl, m.timestamp as time, m.read_by, u.icon_url as iconUrl FROM messages m JOIN users u ON m.sender_name = u.name WHERE m.room_name = $1 ORDER BY m.timestamp ASC`, [roomName]);
         socket.emit('join success', { roomName, history: historyResult.rows, isPrivate: room.is_private });
     });
-
     socket.on('chat message', async (msg) => {
         const roomName = socket.currentRoom; if (!roomName) return;
         const senderResult = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]);
