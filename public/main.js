@@ -7,6 +7,7 @@ function initializeCredentials() { const savedCredentials = localStorage.getItem
 function saveCredentials() { localStorage.setItem('roomCredentials', JSON.stringify(roomCredentials)); }
 function initializeUserName() { const savedName = localStorage.getItem('chatUserName'); if (savedName) { userName = savedName; } else { while (!userName) { userName = prompt("あなたの名前を入力してください"); if (!userName) alert("名前は必須です。"); } localStorage.setItem('chatUserName', userName); } }
 
+// ★★★ ここが修正された createMessageElement 関数 ★★★
 function createMessageElement(msg) {
     const item = document.createElement('li');
     item.className = `message-item ${msg.name === userName ? 'my-message' : 'other-message'}`;
@@ -28,7 +29,17 @@ function createMessageElement(msg) {
         else { if (readCountWithoutSender > 0) readStatusText = `既読 ${readCountWithoutSender}`; }
     }
     const avatarUrl = msg.iconUrl || '/uploads/icons/default.svg';
-    item.innerHTML = `<img src="${avatarUrl}" class="message-avatar"><div class="message-wrapper"><div class="sender-name">${msg.name}</div><div class="message-content"><div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div><div class="status-container"><span class="read-status">${readStatusText}</span><span class="message-time">${timeString}</span></div></div></div>`;
+    // ★ BUG FIX: アバターの表示ロジックを修正
+    item.innerHTML = `
+        <img src="${avatarUrl}" class="message-avatar">
+        <div class="message-wrapper">
+            <div class="sender-name">${msg.name}</div>
+            <div class="message-content">
+                <div class="message-bubble">${deleteButtonHTML}${messageContentHTML}</div>
+                <div class="status-container"><span class="read-status">${readStatusText}</span><span class="message-time">${timeString}</span></div>
+            </div>
+        </div>
+    `;
     return item;
 }
 
@@ -111,15 +122,13 @@ socket.on('update user list', (users) => {
     if (me) {
         const myLi = document.createElement('li');
         myLi.dataset.username = me.name;
-        // ★★★ "iconUrl" に統一 ★★★
-        myLi.innerHTML = `<div class="my-user-entry"><img id="my-avatar" src="${me.iconUrl}" class="user-avatar" title="アイコンを変更"><span style="flex-grow: 1;">${me.name} (自分)</span><button class="edit-name-btn">編集</button></div>`;
+        myLi.innerHTML = `<div class="my-user-entry"><img id="my-avatar" src="${me.icon_url}" class="user-avatar" title="アイコンを変更"><span style="flex-grow: 1;">${me.name} (自分)</span><button class="edit-name-btn">編集</button></div>`;
         userList.appendChild(myLi);
     }
     others.forEach(user => {
         const li = document.createElement('li');
         li.dataset.username = user.name;
-        // ★★★ "iconUrl" に統一 ★★★
-        li.innerHTML = `<img src="${user.iconUrl}" class="user-avatar"><span>${user.name}</span>`;
+        li.innerHTML = `<img src="${user.icon_url}" class="user-avatar"><span>${user.name}</span>`;
         userList.appendChild(li);
     });
 });
