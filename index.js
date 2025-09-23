@@ -1,4 +1,4 @@
-// ★ dotenv を一番最初に読み込む
+// dotenv を一番最初に読み込む
 require('dotenv').config();
 
 const express = require('express');
@@ -100,7 +100,11 @@ io.on('connection', (socket) => {
         const room = roomResult.rows[0];
         const isAuthorized = room.is_private || room.creator === userName || room.password === password;
         if (!isAuthorized) return socket.emit('join failure', 'パスワードが間違っています。');
-        if (!room.participants.includes(userName)) { room.participants.push(userName); await db.query('UPDATE rooms SET participants = $1 WHERE name = $2', [JSON.stringify(room.participants), roomName]); sendRoomList(socket); }
+        if (!room.participants.includes(userName)) {
+            room.participants.push(userName);
+            await db.query('UPDATE rooms SET participants = $1 WHERE name = $2', [JSON.stringify(room.participants), roomName]);
+            sendRoomList(socket);
+        }
         joinRoom(socket, roomName);
         const historyResult = await db.query(`SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as imageUrl, m.timestamp as time, m.read_by, u.icon_url as iconUrl FROM messages m JOIN users u ON m.sender_name = u.name WHERE m.room_name = $1 ORDER BY m.timestamp ASC`, [roomName]);
         socket.emit('join success', { roomName, history: historyResult.rows });
@@ -139,8 +143,39 @@ io.on('connection', (socket) => {
         if (result.rowCount > 0) { io.to(roomId).emit('message deleted', { messageId }); }
     });
     
-    socket.on('change username', async ({ oldName, newName }) => { /* ... 機能一時停止 ... */ });
-    socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUserList(); });
+    // ★★★ change username リスナーのDB操作を修正 ★★★
+    socket.on('change username', async ({ oldName, newName }) => {
+        if (!oldName || !newName || oldName === newName) return;
+        try {
+            // DB更新処理をトランザクション化
+            await db.query('BEGIN');
+            await db.query('UPDATE users SET name = $1 WHERE name = $2', [newName, oldName]);
+            const affectedRoomsResult = await db.query('SELECT name, participants FROM rooms WHERE participants @> $1', [`["${oldName}"]`]);
+            for (const room of affectedRoomsResult.rows) {
+                const newParticipants = room.participants.map(p => p === oldName ? newName : p);
+                await db.query('UPDATE rooms SET participants = $1, creator = (CASE WHEN creator = $2 THEN $3 ELSE creator END) WHERE name = $4', [JSON.stringify(newParticipants), oldName, newName, room.name]);
+            }
+            await db.query('UPDATE messages SET sender_name = $1 WHERE sender_name = $2', [newName, oldName]);
+            await db.query('COMMIT');
+
+            // サーバー上の情報を更新
+            onlineUsers[socket.id] = newName;
+            socket.userName = newName;
+
+            // 全員にオンラインユーザーリストとルームリストの更新を通知
+            broadcastUserList();
+            sendRoomList(socket);
+            console.log(`名前が変更されました: ${oldName} -> ${newName}`);
+        } catch (e) {
+            await db.query('ROLLBACK');
+            console.error('名前の変更に失敗:', e);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        delete onlineUsers[socket.id];
+        broadcastUserList();
+    });
 });
 
 async function startServer() {
