@@ -1,6 +1,4 @@
-// dotenv を一番最初に読み込む
 require('dotenv').config();
-
 const express = require('express'); const app = express(); const http = require('http'); const server = http.createServer(app); const { Server } = require("socket.io"); const io = new Server(server); const multer = require('multer'); const { setupDatabase } = require('./database.js'); const path = require('path');
 const cloudinary = require('cloudinary').v2; const { CloudinaryStorage } = require('multer-storage-cloudinary');
 app.use(express.static('public'));
@@ -26,7 +24,11 @@ let db; const onlineUsers = {};
 
 async function broadcastUserList() {
     try {
-        const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1::text[])', [Object.values(onlineUsers)]);
+        const userNames = Object.values(onlineUsers);
+        if (userNames.length === 0) {
+            return io.emit('update user list', []);
+        }
+        const usersResult = await db.query('SELECT name, icon_url AS "iconUrl" FROM users WHERE name = ANY($1::text[])', [userNames]);
         io.emit('update user list', usersResult.rows);
     } catch(e) { console.error("ユーザーリストの取得に失敗:", e); }
 }
@@ -43,8 +45,8 @@ io.on('connection', (socket) => {
     socket.on('user connected', async (userName) => {
         onlineUsers[socket.id] = userName; socket.userName = userName;
         await db.query('INSERT INTO users (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [userName]);
-        const userResult = await db.query('SELECT icon_url FROM users WHERE name = $1', [userName]);
-        if (userResult.rows.length > 0) socket.emit('my info', { iconUrl: userResult.rows[0].icon_url });
+        const userResult = await db.query('SELECT icon_url AS "iconUrl" FROM users WHERE name = $1', [userName]);
+        if (userResult.rows.length > 0) socket.emit('my info', userResult.rows[0]);
         sendRoomList(socket); broadcastUserList();
     });
     socket.on('create room', async ({ roomName, password, creator }) => {
@@ -95,25 +97,7 @@ io.on('connection', (socket) => {
         } catch (e) { console.error('既読情報の更新に失敗:', e); }
     });
     socket.on('delete message', async ({ roomId, messageId }) => { const result = await db.query('DELETE FROM messages WHERE id = $1 AND sender_name = $2', [messageId, socket.userName]); if (result.rowCount > 0) { io.to(roomId).emit('message deleted', { messageId }); } });
-    socket.on('change username', async ({ oldName, newName }) => {
-        if (!oldName || !newName || oldName === newName) return;
-        try {
-            await db.query('BEGIN');
-            await db.query('UPDATE users SET name = $1 WHERE name = $2', [newName, oldName]);
-            const affectedRoomsResult = await db.query('SELECT name, participants, is_private FROM rooms WHERE participants @> $1', [`["${oldName}"]`]);
-            for (const room of affectedRoomsResult.rows) {
-                const newParticipants = room.participants.map(p => p === oldName ? newName : p);
-                let newRoomName = room.name;
-                if (room.is_private) { newRoomName = newParticipants.sort().join('-'); }
-                await db.query('UPDATE rooms SET name = $1, participants = $2, creator = (CASE WHEN creator = $3 THEN $4 ELSE creator END) WHERE name = $5', [newRoomName, JSON.stringify(newParticipants), oldName, newName, room.name]);
-            }
-            await db.query('UPDATE messages SET sender_name = $1 WHERE sender_name = $2', [newName, oldName]);
-            await db.query('COMMIT');
-            onlineUsers[socket.id] = newName; socket.userName = newName;
-            broadcastUserList();
-            io.emit('force refresh rooms');
-        } catch (e) { await db.query('ROLLBACK'); console.error('名前の変更に失敗:', e); }
-    });
+    socket.on('change username', async ({ oldName, newName }) => { if (!oldName || !newName || oldName === newName) return; try { await db.query('BEGIN'); await db.query('UPDATE users SET name = $1 WHERE name = $2', [newName, oldName]); const affectedRoomsResult = await db.query('SELECT name, participants, is_private FROM rooms WHERE participants @> $1', [`["${oldName}"]`]); for (const room of affectedRoomsResult.rows) { const newParticipants = room.participants.map(p => p === oldName ? newName : p); let newRoomName = room.name; if (room.is_private) { newRoomName = newParticipants.sort().join('-'); } await db.query('UPDATE rooms SET name = $1, participants = $2, creator = (CASE WHEN creator = $3 THEN $4 ELSE creator END) WHERE name = $5', [newRoomName, JSON.stringify(newParticipants), oldName, newName, room.name]); } await db.query('UPDATE messages SET sender_name = $1 WHERE sender_name = $2', [newName, oldName]); await db.query('COMMIT'); onlineUsers[socket.id] = newName; socket.userName = newName; broadcastUserList(); io.emit('force refresh rooms'); } catch (e) { await db.query('ROLLBACK'); console.error('名前の変更に失敗:', e); } });
     socket.on('request user list', () => broadcastUserList());
     socket.on('disconnect', () => { delete onlineUsers[socket.id]; broadcastUserList(); });
 });
