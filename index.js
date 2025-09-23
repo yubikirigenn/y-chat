@@ -1,58 +1,12 @@
-const express = require('express');
-const app = express();
-const http = require('http');
-const server = http.createServer(app);
-const { Server } = require("socket.io");
-const io = new Server(server);
-const multer = require('multer');
-const { setupDatabase } = require('./database.js');
-const path = require('path');
-
-// ★★★ Cloudinaryのライブラリをインポート ★★★
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
-// publicフォルダを静的ファイルとして配信
+const express = require('express'); const app = express(); const http = require('http'); const server = http.createServer(app); const { Server } = require("socket.io"); const io = new Server(server); const multer = require('multer'); const { setupDatabase } = require('./database.js'); const fs = require('fs'); const path = require('path');
 app.use(express.static('public'));
-
-// ★★★ Cloudinaryの設定 (Renderの環境変数から読み込む) ★★★
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// ★★★ Multerの保存先をCloudinaryに変更 (メッセージ画像用) ★★★
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'y-chat/messages', // Cloudinary上の保存先フォルダ
-    format: async (req, file) => 'png', // ファイル形式を統一
-  },
-});
+const cloudinary = require('cloudinary').v2; const { CloudinaryStorage } = require('multer-storage-cloudinary');
+cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
+const storage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: 'y-chat/messages', format: async (req, file) => 'png' } });
 const upload = multer({ storage: storage });
-
-// ★★★ Multerの保存先をCloudinaryに変更 (アイコン画像用) ★★★
-const iconStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'y-chat/icons',
-    format: async (req, file) => 'png',
-    public_id: (req, file) => `icon-${req.body.userName}`, // ユーザー名でファイル名を固定し、上書きする
-  },
-});
+const iconStorage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: 'y-chat/icons', format: async (req, file) => 'png', public_id: (req, file) => `icon-${req.body.userName}` } });
 const uploadIcon = multer({ storage: iconStorage });
-
-
-// ★★★ アップロードエンドポイントをCloudinary用に修正 ★★★
-app.post('/upload', upload.single('image'), (req, res) => {
-    if (req.file) {
-        res.json({ imageUrl: req.file.path }); // Cloudinaryから返されたURL
-    } else {
-        res.status(400).send('ファイルのアップロードに失敗しました。');
-    }
-});
-
+app.post('/upload', upload.single('image'), (req, res) => { if (req.file) res.json({ imageUrl: req.file.path }); else res.status(400).send('ファイルのアップロードに失敗しました。'); });
 app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
     const userName = req.body.userName;
     if (req.file && userName) {
@@ -61,25 +15,13 @@ app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
             await db.query('UPDATE users SET icon_url = $1 WHERE name = $2', [newIconUrl, userName]);
             io.emit('user icon changed', { userName, newIconUrl });
             res.json({ iconUrl: newIconUrl });
-        } catch(e) {
-            console.error('アイコンURLのDB更新に失敗:', e);
-            res.status(500).send('データベースエラー');
-        }
-    } else {
-        res.status(400).send('アップロード失敗');
-    }
+        } catch(e) { console.error('アイコンURLのDB更新に失敗:', e); res.status(500).send('データベースエラー'); }
+    } else { res.status(400).send('アップロード失敗'); }
 });
 
+let db; const onlineUsers = {};
 
-let db;
-const onlineUsers = {};
-
-async function broadcastUserList() {
-    try {
-        const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1)', [Object.values(onlineUsers)]);
-        io.emit('update user list', usersResult.rows);
-    } catch(e) { console.error("ユーザーリストの取得に失敗:", e); }
-}
+async function broadcastUserList() { try { const usersResult = await db.query('SELECT name, icon_url FROM users WHERE name = ANY($1::text[])', [Object.values(onlineUsers)]); io.emit('update user list', usersResult.rows); } catch(e) { console.error("ユーザーリストの取得に失敗:", e); } }
 async function sendRoomList(socket) {
     const userName = socket.userName; if (!userName) return;
     try {
@@ -97,7 +39,10 @@ io.on('connection', (socket) => {
         if (userResult.rows.length > 0) socket.emit('my info', { iconUrl: userResult.rows[0].icon_url });
         sendRoomList(socket); broadcastUserList();
     });
-    socket.on('create room', async ({ roomName, password, creator }) => { await db.query('INSERT INTO rooms (name, password, creator, participants, is_private) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING', [roomName, password, creator, JSON.stringify([creator]), false]); joinRoom(socket, roomName); sendRoomList(socket); socket.emit('join success', { roomName, history: [] }); });
+    socket.on('create room', async ({ roomName, password, creator }) => {
+        await db.query('INSERT INTO rooms (name, password, creator, participants, is_private) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING', [roomName, password, creator, JSON.stringify([creator]), false]);
+        joinRoom(socket, roomName); sendRoomList(socket); socket.emit('join success', { roomName, history: [] });
+    });
     socket.on('start private chat', async (targetUserName) => {
         const initiatorName = socket.userName; if (targetUserName === initiatorName) return;
         const roomName = [initiatorName, targetUserName].sort().join('-');
@@ -122,9 +67,9 @@ io.on('connection', (socket) => {
     socket.on('chat message', async (msg) => {
         const roomName = socket.currentRoom; if (!roomName) return;
         const senderResult = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]); const senderIcon = senderResult.rows.length > 0 ? senderResult.rows[0].icon_url : '/uploads/icons/default.svg';
-        const timestamp = new Date(); const messageData = { id: Date.now() + Math.random().toString(36).substr(2, 9), room_name: roomName, sender_name: msg.name, text_content: msg.text || null, image_url: msg.imageUrl || null, timestamp: timestamp, read_by: JSON.stringify([msg.name]) };
-        await db.query('INSERT INTO messages (id, room_name, sender_name, text_content, image_url, timestamp, read_by) VALUES ($1, $2, $3, $4, $5, $6, $7)', Object.values(messageData));
-        const clientMessageData = { id: messageData.id, name: messageData.sender_name, text: messageData.text_content, imageUrl: messageData.image_url, time: messageData.timestamp, read_by: messageData.read_by, iconUrl: senderIcon };
+        const timestamp = new Date();
+        await db.query('INSERT INTO messages (id, room_name, sender_name, text_content, image_url, timestamp, read_by) VALUES ($1, $2, $3, $4, $5, $6, $7)', [Date.now() + Math.random().toString(36).substr(2, 9), roomName, msg.name, msg.text || null, msg.imageUrl || null, timestamp, JSON.stringify([msg.name])]);
+        const clientMessageData = { id: messageData.id, name: msg.name, text: msg.text || null, imageUrl: msg.imageUrl || null, time: timestamp, read_by: JSON.stringify([msg.name]), iconUrl: senderIcon };
         const messagePacket = { room: roomName, data: clientMessageData };
         const roomResult = await db.query('SELECT participants FROM rooms WHERE name = $1', [roomName]);
         if (roomResult.rows.length > 0) { const participants = roomResult.rows[0].participants; const userSocketMap = Object.entries(onlineUsers).reduce((acc, [id, name]) => { acc[name] = id; return acc; }, {}); participants.forEach(pName => { const targetSocketId = userSocketMap[pName]; if (targetSocketId) { io.to(targetSocketId).emit('chat message', messagePacket); } }); }
@@ -149,5 +94,4 @@ async function startServer() {
     const PORT = process.env.PORT || 3000;
     server.listen(PORT, () => console.log(`サーバーがポート${PORT}で起動しました`));
 }
-
 startServer();
