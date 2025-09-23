@@ -18,10 +18,10 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
 .sidebar-section { padding: 10px 0; border-bottom: 1px solid #4a5259; }
 .sidebar-title { font-size: 0.9rem; color: #aeb8c0; margin: 0 0 10px 20px; font-weight: normal; }
 .room-list, .user-list { list-style: none; padding: 0; margin: 0; }
-.room-list li { padding: 10px 20px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
-.user-list li { padding: 8px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+.room-list li, .user-list li { padding: 10px 20px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
 .room-list li:hover, .user-list li:hover { background-color: #4a5259; }
 .room-list li.active { background-color: #5d666e; }
+.user-list li { justify-content: flex-start; gap: 10px; padding: 8px 20px; }
 .user-list .my-user-entry { width: 100%; display: flex; align-items: center; gap: 10px; }
 .user-list .user-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
 .user-list .my-user-entry #my-avatar { border: 1px solid white; }
@@ -48,30 +48,41 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .dialog-buttons button[type="submit"] { background-color: #3b434a; color: white; }
 .dialog-buttons .cancel-btn { background-color: #f0f0f0; color: #333; }
 
-/* --- Message Layout --- */
-.message-item { display: flex; gap: 10px; margin-bottom: 20px; max-width: 70%; }
-.my-message { margin-left: auto; flex-direction: row-reverse; }
-.other-message { margin-right: auto; flex-direction: row; }
-.message-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
-.message-wrapper { display: flex; flex-direction: column; }
-.my-message .message-wrapper { align-items: flex-end; }
-.other-message .message-wrapper { align-items: flex-start; }
+/* ★★★ Message Layout (Grid Final Version) ★★★ */
+.message-item {
+    display: grid;
+    grid-template-columns: 40px auto; /* [Avatar] [Content] */
+    gap: 10px;
+    margin-bottom: 20px;
+    max-width: 70%;
+}
+.message-avatar { grid-row: 1 / 3; width: 40px; height: 40px; border-radius: 50%; }
 .sender-name { font-size: 0.8rem; color: #333; margin-bottom: 4px; }
-.my-message .sender-name { display: none; }
-.other-message .sender-name { margin-left: 5px; }
 .message-content { display: flex; align-items: flex-end; gap: 8px; }
-.my-message .message-content { flex-direction: row-reverse; }
-.other-message .message-content { flex-direction: row; }
 .message-bubble { padding: 10px 15px; border-radius: 18px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.my-message .message-bubble { background-color: var(--my-bubble-color); border-top-right-radius: 4px; }
-.other-message .message-bubble { background-color: var(--other-bubble-color); border-top-left-radius: 4px; }
 .message-bubble p { margin: 0; word-wrap: break-word; }
 .message-bubble img { max-width: 100%; max-height: 250px; border-radius: 10px; display: block; }
 .status-container { flex-shrink: 0; font-size: 0.75rem; color: #888; text-align: right; margin-bottom: 2px; display: flex; flex-direction: column; }
-.other-message .status-container { text-align: left; }
-.my-message .status-container { align-items: flex-end; }
 .read-status { margin-right: 4px; }
+
+/* My messages */
+.my-message {
+    grid-template-columns: auto 40px; /* [Content] [Avatar] */
+    margin-left: auto;
+    direction: rtl; /* 右から左へ */
+}
+.my-message > * { direction: ltr; } /* 中身は左から右へ */
+.my-message .sender-name { display: none; }
+.my-message .message-bubble { background-color: var(--my-bubble-color); border-top-right-radius: 4px; }
+.my-message .status-container { align-items: flex-end; }
 .my-message .read-status { margin-left: 4px; margin-right: 0; }
+
+/* Other's messages */
+.other-message { margin-right: auto; }
+.other-message .sender-name { margin-left: 5px; }
+.other-message .message-bubble { background-color: var(--other-bubble-color); border-top-left-radius: 4px; }
+.other-message .status-container { align-items: flex-start; }
+
 /* Delete Button */
 .delete-btn { position: absolute; top: -8px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid #aaa; background-color: white; color: #555; font-size: 14px; line-height: 18px; text-align: center; cursor: pointer; opacity: 0; transition: opacity 0.2s; padding: 0; }
 .my-message .message-bubble:hover .delete-btn { opacity: 1; }
