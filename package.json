@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "cloudinary": "^1.41.3",
+    "dotenv": "^17.2.2",
     "express": "^4.21.2",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
