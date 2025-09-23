@@ -59,7 +59,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     gap: 0 10px;
     margin-bottom: 20px;
     max-width: 70%;
-    width: max-content; /* ★ BUG FIX: widthをmax-contentに設定 */
+    width: max-content;
 }
 .my-message {
     grid-template-columns: auto 40px;
@@ -80,6 +80,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     font-size: 0.8rem;
     color: #333;
     margin-bottom: 4px;
+    white-space: nowrap; /* ★ BUG FIX: 名前が改行しないようにする */
 }
 .my-message .sender-name { display: none; }
 .other-message .sender-name { margin-left: 5px; }
@@ -97,7 +98,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     border-radius: 18px;
     position: relative;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    width: max-content; /* ★ BUG FIX: 吹き出しの幅をコンテンツに合わせる */
+    width: max-content;
 }
 .my-message .message-bubble { background-color: var(--my-bubble-color); border-top-right-radius: 4px; }
 .other-message .message-bubble { background-color: var(--other-bubble-color); border-top-left-radius: 4px; }
