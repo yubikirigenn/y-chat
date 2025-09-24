@@ -50,46 +50,56 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 
 /* ★★★ Message Layout (Final Version) ★★★ */
 .message-item {
-    display: flex;
+    display: grid;
+    grid-template-columns: 40px auto; /* [Avatar] [Content] */
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+        ". name"
+        "avatar body";
+    gap: 0 10px;
     margin-bottom: 20px;
-    max-width: 100%;
-}
-.my-message { justify-content: flex-end; }
-.other-message { justify-content: flex-start; }
-
-.message-container {
-    display: flex;
-    flex-direction: column;
     max-width: 70%;
+    width: max-content;
 }
-.my-message .message-container { align-items: flex-end; }
-.other-message .message-container { align-items: flex-start; }
-
-.sender-name {
-    font-size: 0.8rem;
-    color: #333;
-    margin-bottom: 4px;
+.my-message {
+    grid-template-columns: auto 40px;
+    grid-template-areas:
+        "name ."
+        "body avatar";
+    margin-left: auto;
 }
-.my-message .sender-name { display: none; }
-.other-message .sender-name { margin-left: 50px; }
-
-.message-body {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-}
-.my-message .message-body { flex-direction: row-reverse; }
-.other-message .message-body { flex-direction: row; }
 
 .message-avatar {
+    grid-area: avatar;
     width: 40px;
     height: 40px;
     border-radius: 50%;
 }
+.sender-name {
+    grid-area: name;
+    font-size: 0.8rem;
+    color: #333;
+    margin-bottom: 4px;
+    white-space: nowrap; /* ★ BUG FIX: 名前が改行しないようにする */
+    word-break: keep-all; /* ★ BUG FIX: 単語の途中でも改行しない */
+}
+.my-message .sender-name { display: none; }
+.other-message .sender-name { margin-left: 5px; }
+
+.message-body {
+    grid-area: body;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+.my-message .message-body { flex-direction: row-reverse; }
+
 .message-bubble {
     padding: 10px 15px;
     border-radius: 18px;
     position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    width: max-content;
 }
 .my-message .message-bubble { background-color: var(--my-bubble-color); border-top-right-radius: 4px; }
 .other-message .message-bubble { background-color: var(--other-bubble-color); border-top-left-radius: 4px; }
