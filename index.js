@@ -1,4 +1,4 @@
-// index.js
+// index.js (最終確定版)
 
 // --- 必要なモジュールのインポート ---
 const express = require('express');
@@ -16,13 +16,17 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// --- 静的ファイルの配信設定 ---
-app.use(express.static(__dirname)); // index.html, style.css, main.jsなどを配信
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // uploadsフォルダを配信
+// --- ★★★ 静的ファイルの配信設定 (最重要・修正点) ★★★ ---
+// 'public' という名前のフォルダを、HTML/CSS/JSファイルの置き場所として指定します。
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+// 'uploads' フォルダも同様に配信設定します。
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- ルートURL ("/") へのアクセス設定 ---
+// publicフォルダの中のindex.htmlを返すようにします。
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 // --- ファイルアップロード用の設定 ---
@@ -62,8 +66,7 @@ app.post('/upload-icon', uploadIcon.single('icon'), (req, res) => {
     });
 });
 
-// --- ★★★ Socket.IOの通信処理 ★★★ ---
-// ここに、あなたの main.js が必要とする全てのサーバー側処理を記述します。
+// --- Socket.IOの通信処理 ---
 io.on('connection', (socket) => {
     console.log(`user connected: ${socket.id}`);
 
