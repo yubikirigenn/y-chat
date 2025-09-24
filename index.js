@@ -1,4 +1,4 @@
-// index.js (すべての機能を復元した完成版)
+// index.js (すべての機能を復元した最終完成版)
 
 // --- 必要なモジュールのインポート ---
 const express = require('express');
@@ -67,13 +67,11 @@ io.on('connection', (socket) => {
 
     // ユーザーがブラウザを開いた時の処理
     socket.on('user connected', (userName) => {
-        db.run('INSERT INTO users (name, socket_id) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET socket_id=excluded.socket_id, icon_url=icon_url', [userName, socket.id], function(err) {
+        db.run('INSERT INTO users (name, socket_id) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET socket_id=excluded.socket_id', [userName, socket.id], function(err) {
             if (err) return console.error(err.message);
-            
             db.get('SELECT icon_url FROM users WHERE name = ?', [userName], (err, row) => {
                 if (row) socket.emit('my info', { iconUrl: row.icon_url });
             });
-
             db.all('SELECT name, is_private FROM rooms', [], (err, rooms) => {
                 if (!err) io.emit('update rooms', rooms);
             });
@@ -86,8 +84,13 @@ io.on('connection', (socket) => {
     // ルーム作成
     socket.on('create room', ({ roomName, password, creator }) => {
         db.run('INSERT INTO rooms (name, password) VALUES (?, ?)', [roomName, password], function(err) {
-            if (err) return console.error(err.message);
-            io.emit('force refresh rooms');
+            if (err) {
+                console.error('Room creation failed:', err.message);
+                return;
+            }
+            db.all('SELECT name, is_private FROM rooms', [], (err, rooms) => {
+                if (!err) io.emit('update rooms', rooms);
+            });
         });
     });
 
@@ -163,7 +166,11 @@ io.on('connection', (socket) => {
             const roomName = [currentUser.name, targetUserName].sort().join('-');
             db.get('SELECT * FROM rooms WHERE name = ?', [roomName], (err, room) => {
                 if (!room) {
-                    db.run('INSERT INTO rooms (name, is_private) VALUES (?, 1)', [roomName], () => io.emit('force refresh rooms'));
+                    db.run('INSERT INTO rooms (name, is_private) VALUES (?, 1)', [roomName], () => {
+                        db.all('SELECT name, is_private FROM rooms', [], (err, rooms) => {
+                            if (!err) io.emit('update rooms', rooms);
+                        });
+                    });
                 }
             });
         });
