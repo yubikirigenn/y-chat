@@ -1,4 +1,4 @@
-// public/main.js (最終完成版)
+// public/main.js (メッセージ送信機能を修正した最終完成版)
 
 const socket = io();
 
@@ -46,11 +46,12 @@ function initializeUserName() {
     }
 }
 
-// --- ★★★ メッセージ要素作成関数 (アイコン・既読ロジックを完全復元) ★★★ ---
+// --- メッセージ要素作成関数 ---
 function createMessageElement(msg) {
     const item = document.createElement('li');
     const isMyMessage = msg.name === userName;
     item.className = `message-item ${isMyMessage ? 'my-message' : 'other-message'}`;
+    item.dataset.messageId = msg.id;
     
     const date = new Date(msg.time);
     const timeString = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -62,10 +63,8 @@ function createMessageElement(msg) {
         messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`;
     }
 
-    // ★ アイコンURLを正しく設定
-    const avatarUrl = isMyMessage ? (myIconUrl || '/default-icon.svg') : (msg.iconUrl || '/default-icon.svg');
+    const avatarUrl = msg.iconUrl || '/default-icon.svg';
 
-    // ★ 既読ステータスを正しく計算
     let readStatusHTML = '';
     if (isMyMessage) {
         const readers = msg.read_by || [];
@@ -148,12 +147,45 @@ roomList.addEventListener('click', (e) => {
         }
     }
 });
+
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★                                                  ★
+// ★    ここが、今回の問題を解決する最後の修正箇所です    ★
+// ★                                                  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (input.value && currentRoom) {
-        socket.emit('chat message', { room: currentRoom, name: userName, text: input.value });
+        socket.emit('chat message', {
+            room: currentRoom,
+            name: userName,
+            text: input.value,
+            imageUrl: null // ★ この行が抜けていたのを修正しました
+        });
         input.value = '';
     }
+});
+
+imageUploadBtn.addEventListener('click', () => {
+    if (!currentRoom) return alert('画像をアップロードするには、まずトークルームを選択してください。');
+    imageInput.click();
+});
+imageInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch('/upload', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (response.ok) {
+        socket.emit('chat message', {
+            room: currentRoom,
+            name: userName,
+            text: null,
+            imageUrl: result.imageUrl
+        });
+    }
+    e.target.value = '';
 });
 userList.addEventListener('click', (e) => {
     if (e.target.id === 'my-avatar') iconInput.click();
@@ -173,14 +205,19 @@ cancelBtns.forEach(btn => btn.addEventListener('click', () => createRoomDialog.c
 socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
 socket.on('update rooms', (rooms) => {
     myRoomsInfo = {};
-    rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; });
-    renderRoomList(rooms);
+    if(Array.isArray(rooms)) {
+        rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; });
+    }
+    renderRoomList(rooms || []);
 });
 socket.on('update user list', renderUserList);
 socket.on('user icon changed', ({ userName: changedUser, newIconUrl }) => {
     if (changedUser === userName) myIconUrl = newIconUrl;
-    // ユーザーリストとメッセージ内の全アイコンを更新
-    document.querySelectorAll(`img[src*="${changedUser}"]`).forEach(img => img.src = newIconUrl);
+    renderUserList(Array.from(userList.children).map(li => {
+        const name = li.querySelector('span').textContent.replace(' (自分)', '');
+        const img = li.querySelector('img');
+        return { name, icon_url: name === changedUser ? newIconUrl : img.src };
+    }));
 });
 socket.on('join success', (data) => {
     currentRoom = data.roomName;
@@ -192,7 +229,7 @@ socket.on('join success', (data) => {
         roomCredentials[currentRoom] = lastJoinAttempt.password;
         saveCredentials();
     }
-    renderRoomList(Object.values(myRoomsInfo).map(r => ({...r, name: Object.keys(myRoomsInfo).find(k => myRoomsInfo[k] === r)})));
+    renderRoomList(Object.keys(myRoomsInfo).map(name => ({ name, ...myRoomsInfo[name] })));
 });
 socket.on('join failure', (errorMessage) => {
     alert(errorMessage);
