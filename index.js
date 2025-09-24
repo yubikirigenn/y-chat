@@ -1,10 +1,10 @@
-// index.js (エラー報告機能を搭載した最終診断版)
+// index.js (致命的なタイプミスを修正した最終完成版)
 
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const path = require('path');
-const multer = require(' multer');
+const multer = require('multer'); // ★★★ ここのスペースを削除しました ★★★
 require('dotenv').config();
 
 const db = require('./database.js');
