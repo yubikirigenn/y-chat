@@ -81,6 +81,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     color: #333;
     margin-bottom: 4px;
     white-space: nowrap; /* ★ BUG FIX: 名前が改行しないようにする */
+    word-break: keep-all; /* ★ BUG FIX: 単語の途中でも改行しない */
 }
 .my-message .sender-name { display: none; }
 .other-message .sender-name { margin-left: 5px; }
