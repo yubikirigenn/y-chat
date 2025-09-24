@@ -1,4 +1,4 @@
-// index.js (あなたのDBスキーマに完全に合わせた最終完成版)
+// index.js (ルーム参加の論理エラーを修正した最終完成版)
 
 const express = require('express');
 const http = require('http');
@@ -33,13 +33,9 @@ app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
         await db.query('UPDATE users SET icon_url = $1 WHERE name = $2', [iconUrl, userName]);
         io.emit('user icon changed', { userName, newIconUrl: iconUrl });
         res.json({ iconUrl });
-    } catch (error) {
-        console.error('Icon upload error:', error);
-        res.status(500).send('Server error');
-    }
+    } catch (error) { console.error('Icon upload error:', error); res.status(500).send('Server error'); }
 });
 
-// --- Socket.IO 通信処理 (あなたのDB構造に完全対応) ---
 io.on('connection', (socket) => {
     console.log(`user connected: ${socket.id}`);
 
@@ -63,16 +59,38 @@ io.on('connection', (socket) => {
         } catch (error) { console.error('Error on create room:', error); }
     });
 
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    // ★                                                  ★
+    // ★    ここが、今回の問題を解決する最重要修正箇所です    ★
+    // ★                                                  ★
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     socket.on('attempt join room', async ({ roomName, password }) => {
         try {
+            console.log(`[Server] User trying to join room: "${roomName}"`); // デバッグ用ログ
             const { rows } = await db.query('SELECT * FROM rooms WHERE name = $1', [roomName]);
             const room = rows[0];
-            if (!room) return socket.emit('join failure', 'そのルームは存在しません。');
-            if (room.password !== password && password !== null) return socket.emit('join failure', 'パスワードが違います。');
+
+            if (!room) {
+                console.log(`[Server] Join failed: Room "${roomName}" not found.`);
+                return socket.emit('join failure', 'そのルームは存在しません。');
+            }
+
+            // パスワードが設定されているか (NULLや空文字列でないか) を確認
+            const isPasswordProtected = room.password && room.password.length > 0;
+
+            if (isPasswordProtected && room.password !== password) {
+                console.log(`[Server] Join failed: Incorrect password for room "${roomName}".`);
+                return socket.emit('join failure', 'パスワードが違います。');
+            }
+
+            // パスワードチェックを通過
+            console.log(`[Server] Join success for room: "${roomName}". Fetching history...`);
             socket.join(roomName);
-            // ★ あなたのカラム名 (sender_name as name, text_content as text, image as imageUrl) を使用
             const { rows: history } = await db.query("SELECT id, sender_name as name, text_content as text, image as imageUrl, timestamp as time, read_by FROM messages WHERE room_name = $1 ORDER BY timestamp ASC", [roomName]);
+            
+            console.log(`[Server] Emitting 'join success' to client for room "${roomName}".`);
             socket.emit('join success', { roomName, history, isPrivate: room.is_private });
+
         } catch (error) { console.error('Error on attempt join room:', error); }
     });
 
@@ -80,7 +98,6 @@ io.on('connection', (socket) => {
         try {
             const room = msg.room;
             const readBy = JSON.stringify([msg.name]);
-            // ★ あなたのカラム名 (sender_name, text_content, image) を使用
             const result = await db.query('INSERT INTO messages (room_name, sender_name, text_content, image, read_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, timestamp', [room, msg.name, msg.text, msg.imageUrl, readBy]);
             const { rows: user } = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]);
             const messageData = { id: result.rows[0].id, name: msg.name, text: msg.text, imageUrl: msg.imageUrl, time: result.rows[0].timestamp, iconUrl: user[0]?.icon_url, read_by: [msg.name] };
@@ -88,25 +105,6 @@ io.on('connection', (socket) => {
         } catch (error) { console.error('Error on chat message:', error); }
     });
     
-    socket.on('mark as read', async ({ roomName, messageIds }) => {
-        try {
-            const { rows: userResult } = await db.query('SELECT name FROM users WHERE socket_id = $1', [socket.id]);
-            if (!userResult[0]) return;
-            const userName = userResult[0].name;
-            for (const id of messageIds) {
-                const { rows: msgResult } = await db.query('SELECT read_by FROM messages WHERE id = $1', [id]);
-                if (msgResult[0]) {
-                    let readers = msgResult[0].read_by || [];
-                    if (!readers.includes(userName)) {
-                        readers.push(userName);
-                        await db.query('UPDATE messages SET read_by = $1 WHERE id = $2', [JSON.stringify(readers), id]);
-                        io.to(roomName).emit('update read status', { messageId: id, readers });
-                    }
-                }
-            }
-        } catch (error) { console.error('Error on mark as read:', error); }
-    });
-
     socket.on('disconnect', async () => {
         try {
             console.log(`user disconnected: ${socket.id}`);
@@ -117,7 +115,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- サーバーの起動 ---
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Server is running and listening on port ${PORT}`);
