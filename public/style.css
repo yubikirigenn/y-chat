@@ -1,4 +1,4 @@
-/* public/style.css (最終完成版) */
+/* public/style.css (未読数バッジのスタイルを追加した最終完成版) */
 
 /* --- Global Reset & Basic Setup --- */
 :root {
@@ -31,11 +31,25 @@ body {
 .sidebar-section { padding: 10px 0; border-bottom: 1px solid #4a5259; }
 .sidebar-title { font-size: 0.9rem; color: #aeb8c0; margin: 0 0 10px 20px; font-weight: normal; }
 .room-list, .user-list { list-style: none; padding: 0; margin: 0; }
-.room-list li { padding: 10px 20px; cursor: pointer; }
+.room-list li { padding: 10px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; } /* ★ flexを追加 */
 .room-list li:hover { background-color: #4a5259; }
 .room-list li.active { background-color: #5d666e; }
 .user-list li { display: flex; align-items: center; gap: 10px; padding: 8px 20px; }
-.user-list .user-avatar { width: 24px; height: 24px; border-radius: 50%; }
+.user-list .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+
+/* ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+   ★★★ ここが、私のミスで抜け落ちていた機能の本体です ★★★
+   ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
+.unread-badge {
+    background-color: #e24a4a;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
 
 /* --- Chat Window Header & Footer --- */
 .chat-header { background-color: white; padding: 10px 20px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
@@ -58,11 +72,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .dialog-buttons button[type="submit"] { background-color: #3b434a; color: white; }
 .dialog-buttons .cancel-btn { background-color: #f0f0f0; color: #333; }
 
-/* ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-   ★★★ ここから下が、チャット表示の最も重要な部分です ★★★
-   ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
-
-/* --- Message Layout (最終完成版) --- */
+/* --- Message Layout --- */
 .message-item { display: flex; gap: 10px; max-width: 70%; align-self: flex-start; align-items: flex-start; }
 .my-message { align-self: flex-end; flex-direction: row-reverse; }
 .message-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }

@@ -1,4 +1,4 @@
-// index.js (既読機能と自動参加を完全に復元した最終完成版)
+// index.js (未読数通知機能を完全に復元した最終完成版)
 
 const express = require('express');
 const http = require('http');
@@ -13,6 +13,9 @@ const { iconStorage, imageStorage } = require('./cloudinaryConfig.js');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// ★ どのユーザーがどのルームにいるかを管理するオブジェクト
+const userSocketRoomMap = {};
 
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
@@ -74,20 +77,10 @@ io.on('connection', (socket) => {
                 return socket.emit('join failure', 'パスワードが違います。');
             }
             socket.join(roomName);
+            userSocketRoomMap[socket.id] = roomName; // ★ ユーザーが入室したことを記録
             const { rows: history } = await db.query("SELECT id, sender_name as name, text_content as text, image_url as imageUrl, timestamp as time, read_by FROM messages WHERE room_name = $1 ORDER BY timestamp ASC", [roomName]);
             socket.emit('join success', { roomName, history, isPrivate: room.is_private });
         } catch (error) { handleError('attempt join room', error); }
-    });
-
-    socket.on('chat message', async (msg) => {
-        try {
-            const room = msg.room;
-            const readBy = JSON.stringify([msg.name]);
-            const result = await db.query('INSERT INTO messages (room_name, sender_name, text_content, image_url, read_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, timestamp', [room, msg.name, msg.text, msg.imageUrl, readBy]);
-            const { rows: user } = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]);
-            const messageData = { id: result.rows[0].id, name: msg.name, text: msg.text, imageUrl: msg.imageUrl, time: result.rows[0].timestamp, iconUrl: user[0]?.icon_url, read_by: [msg.name] };
-            io.to(room).emit('chat message', { room, data: messageData });
-        } catch (error) { handleError('chat message', error); }
     });
 
     // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
@@ -95,8 +88,27 @@ io.on('connection', (socket) => {
     // ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
     // ★                                                  ★
     // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    socket.on('chat message', async (msg) => {
+        try {
+            const room = msg.room;
+            const readBy = JSON.stringify([msg.name]);
+            const result = await db.query('INSERT INTO messages (room_name, sender_name, text_content, image_url, read_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, timestamp', [room, msg.name, msg.text, msg.imageUrl, readBy]);
+            const { rows: user } = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]);
+            const messageData = { id: result.rows[0].id, name: msg.name, text: msg.text, imageUrl: msg.imageUrl, time: result.rows[0].timestamp, iconUrl: user[0]?.icon_url, read_by: [msg.name] };
+            
+            // ★ そのルームにいる人には普通にメッセージを送る
+            io.to(room).emit('chat message', { room, data: messageData });
+
+            // ★ そのルームにいない人には「未読」を通知する
+            for (const [socketId, userRoom] of Object.entries(userSocketRoomMap)) {
+                if (userRoom !== room) {
+                    io.to(socketId).emit('new unread message', { roomName: room });
+                }
+            }
+        } catch (error) { handleError('chat message', error); }
+    });
+    
     socket.on('mark as read', async ({ roomName, messageIds, userName }) => {
-        const eventName = 'mark as read';
         try {
             for (const id of messageIds) {
                 const { rows: msgResult } = await db.query('SELECT read_by FROM messages WHERE id = $1', [id]);
@@ -105,12 +117,11 @@ io.on('connection', (socket) => {
                     if (!readers.includes(userName)) {
                         readers.push(userName);
                         await db.query('UPDATE messages SET read_by = $1 WHERE id = $2', [JSON.stringify(readers), id]);
-                        // ルーム内の全員に既読状態の更新を通知
                         io.to(roomName).emit('update read status', { messageId: id, readers });
                     }
                 }
             }
-        } catch (error) { handleError(eventName, error); }
+        } catch (error) { handleError('mark as read', error); }
     });
     
     socket.on('start private chat', async (targetUserName) => {
@@ -131,6 +142,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => {
         try {
             console.log(`[Socket] user disconnected: ${socket.id}`);
+            delete userSocketRoomMap[socket.id]; // ★ ユーザーが退室したことを記録
             await db.query('UPDATE users SET socket_id = NULL WHERE socket_id = $1', [socket.id]);
             const { rows } = await db.query('SELECT name, icon_url FROM users WHERE socket_id IS NOT NULL');
             io.emit('update user list', rows);
