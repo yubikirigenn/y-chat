@@ -1,4 +1,4 @@
-// public/main.js (アイコン表示を完全に修復した最終完成版)
+// public/main.js (アイコンとHTML構造を完全に修復した最終完成版)
 
 const socket = io();
 
@@ -52,59 +52,56 @@ function initializeUserName() {
     }
 }
 
-// --- メッセージ要素作成関数 ---
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★                                                  ★
+// ★    ここが、アイコンとレイアウトのバグを修正する    ★
+// ★              最重要コードです                      ★
+// ★                                                  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 function createMessageElement(msg) {
     const item = document.createElement('li');
     const isMyMessage = msg.name === userName;
     item.className = `message-item ${isMyMessage ? 'my-message' : 'other-message'}`;
     item.dataset.messageId = msg.id;
+
     const date = new Date(msg.time);
     const timeString = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+
     let messageContentHTML = '';
-    if (msg.text) { messageContentHTML = `<p>${msg.text.replace(/\n/g, '<br>')}</p>`; }
-    else if (msg.imageUrl) { messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`; }
+    if (msg.text) {
+        messageContentHTML = `<p>${msg.text.replace(/\n/g, '<br>')}</p>`;
+    } else if (msg.imageUrl) {
+        messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`;
+    }
 
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    // ★                                                  ★
-    // ★    ここが、アイコンのバグを修正する最重要コードです    ★
-    // ★                                                  ★
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    const avatarUrl = msg.iconUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // URLがなければ透明な画像を表示
+    // ★ アイコンURLが存在しない場合は、透明な画像を表示してレイアウト崩れを防ぐ
+    const avatarUrl = msg.iconUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 
-    let readStatusHTML = '';
+    let readStatusText = '';
     if (isMyMessage) {
         const readers = Array.isArray(msg.read_by) ? msg.read_by : [];
         const readCountWithoutSender = readers.filter(r => r !== userName).length;
         if (myRoomsInfo[currentRoom]?.isPrivate && readCountWithoutSender > 0) {
-            readStatusHTML = '既読';
+            readStatusText = '既読';
         } else if (readCountWithoutSender > 0) {
-            readStatusHTML = `既読 ${readCountWithoutSender}`;
+            readStatusText = `既読 ${readCountWithoutSender}`;
         }
     }
-    
+
+    // ★ CSSが期待する、正しいHTML構造を生成する
     item.innerHTML = `
         <img src="${avatarUrl}" class="message-avatar">
         <div class="message-wrapper">
             <div class="sender-name">${msg.name}</div>
             <div class="message-content">
+                <div class="message-bubble">${messageContentHTML}</div>
                 <div class="status-container">
-                    <span class="read-status">${readStatusHTML}</span>
+                    <span class="read-status">${readStatusText}</span>
                     <span class="message-time">${timeString}</span>
                 </div>
-                <div class="message-bubble">${messageContentHTML}</div>
             </div>
         </div>
     `;
-    // 順序を status -> bubble に変更
-    if(isMyMessage) {
-        const content = item.querySelector('.message-content');
-        const status = item.querySelector('.status-container');
-        const bubble = item.querySelector('.message-bubble');
-        content.innerHTML = '';
-        content.appendChild(status);
-        content.appendChild(bubble);
-    }
-
     return item;
 }
 
@@ -147,20 +144,8 @@ function renderUserList(users) {
     });
 }
 
-// --- イベントリスナー ---
-createRoomForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const roomName = document.getElementById('new-room-name').value.trim();
-    const password = document.getElementById('new-room-password').value.trim();
-    if (roomName) {
-        socket.emit('create room', { roomName, password, creator: userName });
-        lastJoinAttempt = { roomName, password };
-        socket.emit('attempt join room', { roomName, password });
-        createRoomForm.reset();
-        createRoomDialog.close();
-    }
-});
-// (他のイベントリスナーは変更なし)
+// --- イベントリスナー (変更なし) ---
+createRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('new-room-name').value.trim(); const password = document.getElementById('new-room-password').value.trim(); if (roomName) { socket.emit('create room', { roomName, password, creator: userName }); lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); createRoomForm.reset(); createRoomDialog.close(); } });
 roomList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.room !== currentRoom) { const roomName = li.dataset.room; if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); } let password = roomCredentials[roomName]; if (password === undefined) { password = prompt(`'${roomName}' のパスワードを入力してください:`); } if (password !== null) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); } } });
 createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
 form.addEventListener('submit', (e) => { e.preventDefault(); if (input.value && currentRoom) { socket.emit('chat message', { room: currentRoom, name: userName, text: input.value, imageUrl: null }); input.value = ''; } });
@@ -170,7 +155,7 @@ cancelBtns.forEach(btn => btn.addEventListener('click', () => createRoomDialog.c
 imageUploadBtn.addEventListener('click', () => { if (!currentRoom) return alert('画像をアップロードするには、まずトークルームを選択してください。'); imageInput.click(); });
 imageInput.addEventListener('change', async (e) => { const file = e.target.files[0]; if (!file) return; const formData = new FormData(); formData.append('image', file); const response = await fetch('/upload', { method: 'POST', body: formData }); const result = await response.json(); if (response.ok) { socket.emit('chat message', { room: currentRoom, name: userName, text: null, imageUrl: result.imageUrl }); } e.target.value = ''; });
 
-// --- Socket.IOイベントハンドラ ---
+// --- Socket.IOイベントハンドラ (変更なし) ---
 socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
 socket.on('update rooms', (rooms) => { myRoomsInfo = {}; if (Array.isArray(rooms)) { rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; }); } renderRoomList(rooms || []); });
 socket.on('update user list', renderUserList);
