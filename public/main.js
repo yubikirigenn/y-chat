@@ -1,14 +1,258 @@
-// public/main.js (データベースと完全に同期した最終完成版)
-const socket=io();socket.on('server error',({event:e,message:s})=>{console.error(`Server Error on event "${e}":`,s),alert(`サーバーで内部エラーが発生しました。\n\nイベント: ${e}\n詳細: ${s}\n\nこのメッセージを開発者に伝えてください。`)});const roomList=document.getElementById('room-list'),userList=document.getElementById('user-list'),messages=document.getElementById('messages'),form=document.getElementById('form'),input=document.getElementById('input'),currentRoomNameEl=document.getElementById('current-room-name'),chatMessagesArea=document.getElementById('chat-messages-area'),createRoomBtn=document.getElementById('create-room-btn'),createRoomDialog=document.getElementById('create-room-dialog'),createRoomForm=document.getElementById('create-room-form'),cancelBtns=document.querySelectorAll('.cancel-btn'),imageUploadBtn=document.getElementById('image-upload-btn'),imageInput=document.getElementById('image-input'),iconInput=document.getElementById('icon-input');let userName='',currentRoom='',roomCredentials={},lastJoinAttempt={roomName:null,password:null},myIconUrl='',myRoomsInfo={};function initializeCredentials(){const e=localStorage.getItem('roomCredentials');e&&(roomCredentials=JSON.parse(e))}function saveCredentials(){localStorage.setItem('roomCredentials',JSON.stringify(roomCredentials))}function initializeUserName(){let e=localStorage.getItem('chatUserName');if(e)userName=e;else{for(;!userName;)userName=prompt("あなたの名前を入力してください"),userName||alert("名前は必須です。");localStorage.setItem('chatUserName',userName)}}function createMessageElement(e){const s=document.createElement('li'),t=e.name===userName;s.className=`message-item ${t?'my-message':'other-message'}`,s.dataset.messageId=e.id;const o=new Date(e.time),n=`${o.getHours()}:${String(o.getMinutes()).padStart(2,'0')}`;let a='';e.text?a=`<p>${e.text.replace(/\n/g,'<br>')}</p>`:e.imageUrl&&(a=`<a href="${e.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${e.imageUrl}" alt="画像"></a>`);const i=e.iconUrl||'/default-icon.svg';let l='';if(t){const c=e.read_by||[],r=c.filter(s=>s!==userName).length,d=myRoomsInfo[currentRoom]?.isPrivate;d?r>0&&(l='既読'):r>0&&(l=`既読 ${r}`)}return s.innerHTML=`
-        <img src="${i}" class="message-avatar">
+// public/main.js (個人チャット機能を完全に復元した最終完成版)
+
+const socket = io();
+
+// (エラー表示機能は、念のため残しておきます)
+socket.on('server error', ({ event, message }) => {
+    console.error(`Server Error on event "${event}":`, message);
+    alert(`サーバーで内部エラーが発生しました。\n\nイベント: ${event}\n詳細: ${message}\n\nこのメッセージを開発者に伝えてください。`);
+});
+
+const roomList = document.getElementById('room-list');
+const userList = document.getElementById('user-list');
+// (他のDOM要素も同様)
+const messages = document.getElementById('messages');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const currentRoomNameEl = document.getElementById('current-room-name');
+const chatMessagesArea = document.getElementById('chat-messages-area');
+const createRoomBtn = document.getElementById('create-room-btn');
+const createRoomDialog = document.getElementById('create-room-dialog');
+const createRoomForm = document.getElementById('create-room-form');
+const cancelBtns = document.querySelectorAll('.cancel-btn');
+const imageUploadBtn = document.getElementById('image-upload-btn');
+const imageInput = document.getElementById('image-input');
+const iconInput = document.getElementById('icon-input');
+
+let userName = '';
+let currentRoom = '';
+let roomCredentials = {};
+let lastJoinAttempt = { roomName: null, password: null };
+let myIconUrl = '';
+let myRoomsInfo = {};
+
+// --- 初期化関数 (変更なし) ---
+function initializeCredentials() {
+    const saved = localStorage.getItem('roomCredentials');
+    if (saved) roomCredentials = JSON.parse(saved);
+}
+function saveCredentials() {
+    localStorage.setItem('roomCredentials', JSON.stringify(roomCredentials));
+}
+function initializeUserName() {
+    let saved = localStorage.getItem('chatUserName');
+    if (saved) { userName = saved; }
+    else {
+        while (!userName) {
+            userName = prompt("あなたの名前を入力してください");
+            if (!userName) alert("名前は必須です。");
+        }
+        localStorage.setItem('chatUserName', userName);
+    }
+}
+
+// --- メッセージ要素作成関数 (変更なし) ---
+function createMessageElement(msg) {
+    const item = document.createElement('li');
+    const isMyMessage = msg.name === userName;
+    item.className = `message-item ${isMyMessage ? 'my-message' : 'other-message'}`;
+    item.dataset.messageId = msg.id;
+    const date = new Date(msg.time);
+    const timeString = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+    let messageContentHTML = '';
+    if (msg.text) { messageContentHTML = `<p>${msg.text.replace(/\n/g, '<br>')}</p>`; }
+    else if (msg.imageUrl) { messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`; }
+    const avatarUrl = msg.iconUrl || '/default-icon.svg';
+    let readStatusHTML = '';
+    if (isMyMessage) {
+        const readers = msg.read_by || [];
+        const readCountWithoutSender = readers.filter(r => r !== userName).length;
+        if (myRoomsInfo[currentRoom]?.isPrivate && readCountWithoutSender > 0) {
+            readStatusHTML = '既読';
+        } else if (readCountWithoutSender > 0) {
+            readStatusHTML = `既読 ${readCountWithoutSender}`;
+        }
+    }
+    item.innerHTML = `
+        <img src="${avatarUrl}" class="message-avatar">
         <div class="message-wrapper">
-            <div class="sender-name">${e.name}</div>
+            <div class="sender-name">${msg.name}</div>
             <div class="message-content">
-                <div class="message-bubble">${a}</div>
+                <div class="message-bubble">${messageContentHTML}</div>
                 <div class="status-container">
-                    <span class="read-status">${l}</span>
-                    <span class="message-time">${n}</span>
+                    <span class="read-status">${readStatusHTML}</span>
+                    <span class="message-time">${timeString}</span>
                 </div>
             </div>
         </div>
-    `,s}function renderRoomList(e){roomList.innerHTML='';e.forEach(s=>{const t=document.createElement('li');t.dataset.room=s.name,t.dataset.isprivate=s.is_private,t.textContent=s.name,s.name===currentRoom&&t.classList.add('active'),roomList.appendChild(t)})}function renderUserList(e){userList.innerHTML='';const s=e.find(s=>s.name===userName),t=e.filter(s=>s.name!==userName);s&&(()=>{const o=document.createElement('li');o.innerHTML=`<img src="${s.icon_url||'/default-icon.svg'}" class="user-avatar" id="my-avatar" style="cursor: pointer;" title="アイコンを変更"><span>${s.name} (自分)</span>`,userList.appendChild(o)})(),t.forEach(s=>{const o=document.createElement('li');o.innerHTML=`<img src="${s.icon_url||'/default-icon.svg'}" class="user-avatar"><span>${s.name}</span>`,userList.appendChild(o)})}createRoomBtn.addEventListener('click',()=>createRoomDialog.showModal()),createRoomForm.addEventListener('submit',e=>{e.preventDefault();const s=document.getElementById('new-room-name').value.trim(),t=document.getElementById('new-room-password').value.trim();s&&(socket.emit('create room',{roomName:s,password:t,creator:userName}),createRoomForm.reset(),createRoomDialog.close())}),roomList.addEventListener('click',e=>{const s=e.target.closest('li');if(s&&s.dataset.room!==currentRoom){const t=s.dataset.room;let o=roomCredentials[t];void 0===o&&(o=prompt(`'${t}' のパスワードを入力してください:`)),null!==o&&(lastJoinAttempt={roomName:t,password:o},socket.emit('attempt join room',{roomName:t,password:o}))}}),form.addEventListener('submit',e=>{e.preventDefault(),input.value&&currentRoom&&(socket.emit('chat message',{room:currentRoom,name:userName,text:input.value,imageUrl:null}),input.value='')}),userList.addEventListener('click',e=>{e.target.id==='my-avatar'&&iconInput.click()}),iconInput.addEventListener('change',async e=>{if(!e.target.files[0])return;const s=new FormData;s.append('icon',e.target.files[0]),s.append('userName',userName),await fetch('/upload-icon',{method:'POST',body:s}),e.target.value=''}),cancelBtns.forEach(e=>e.addEventListener('click',()=>createRoomDialog.close())),imageUploadBtn.addEventListener('click',()=>{currentRoom?imageInput.click():alert('画像をアップロードするには、まずトークルームを選択してください。')}),imageInput.addEventListener('change',async e=>{if(!e.target.files[0])return;const s=new FormData;s.append('image',e.target.files[0]);const t=await fetch('/upload',{method:'POST',body:s}),o=await t.json();t.ok&&socket.emit('chat message',{room:currentRoom,name:userName,text:null,imageUrl:o.imageUrl}),e.target.value=''}),socket.on('my info',({iconUrl:e})=>{myIconUrl=e}),socket.on('update rooms',e=>{myRoomsInfo={},e.forEach(s=>{myRoomsInfo[s.name]={isPrivate:s.is_private}}),renderRoomList(e)}),socket.on('update user list',renderUserList),socket.on('user icon changed',({userName:e,newIconUrl:s})=>{e===userName&&(myIconUrl=s),renderUserList(Array.from(userList.children).map(t=>{const o=t.querySelector('span').textContent.replace(' (自分)',''),n=t.querySelector('img');return{name:o,icon_url:o===e?s:n.src}}))}),socket.on('join success',e=>{currentRoom=e.roomName,currentRoomNameEl.textContent=currentRoom,messages.innerHTML='',e.history.forEach(s=>messages.appendChild(createMessageElement(s))),chatMessagesArea.scrollTop=chatMessagesArea.scrollHeight,lastJoinAttempt.roomName===currentRoom&&(roomCredentials[currentRoom]=lastJoinAttempt.password,saveCredentials()),renderRoomList(Object.keys(myRoomsInfo).map(s=>({name:s,...myRoomsInfo[s]})))}),socket.on('join failure',e=>{alert(e),lastJoinAttempt.roomName&&delete roomCredentials[lastJoinAttempt.roomName],saveCredentials()}),socket.on('chat message',e=>{e.room===currentRoom&&(messages.appendChild(createMessageElement(e.data)),chatMessagesArea.scrollTop=chatMessagesArea.scrollHeight)}),initializeCredentials(),initializeUserName(),socket.emit('user connected',userName);
+    `;
+    return item;
+}
+
+// --- UI更新関数 ---
+function renderRoomList(rooms) {
+    roomList.innerHTML = '';
+    rooms.forEach(room => {
+        const li = document.createElement('li');
+        li.dataset.room = room.name;
+        li.dataset.isprivate = room.is_private;
+        li.textContent = room.name;
+        if (room.name === currentRoom) li.classList.add('active');
+        roomList.appendChild(li);
+    });
+}
+function renderUserList(users) {
+    userList.innerHTML = '';
+    users.forEach(user => {
+        const li = document.createElement('li');
+        // ★ クリックイベントのために、各ユーザーに data-username を付与
+        li.dataset.username = user.name;
+        const isMe = user.name === userName;
+        li.innerHTML = `<img src="${user.icon_url || '/default-icon.svg'}" class="user-avatar" ${isMe ? 'id="my-avatar"' : ''}><span>${user.name}${isMe ? ' (自分)' : ''}</span>`;
+        // ★ 自分以外のユーザーはクリックできるようにカーソルを変更
+        if (!isMe) {
+            li.style.cursor = 'pointer';
+            li.title = `${user.name}さんと個人チャットを開始`;
+        }
+        userList.appendChild(li);
+    });
+}
+
+// --- イベントリスナー ---
+createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
+// (他のイベントリスナーは変更なし)
+createRoomForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const roomName = document.getElementById('new-room-name').value.trim();
+    const password = document.getElementById('new-room-password').value.trim();
+    if (roomName) {
+        socket.emit('create room', { roomName, password, creator: userName });
+        createRoomForm.reset();
+        createRoomDialog.close();
+    }
+});
+roomList.addEventListener('click', (e) => {
+    const li = e.target.closest('li');
+    if (li && li.dataset.room !== currentRoom) {
+        const roomName = li.dataset.room;
+        let password = roomCredentials[roomName];
+        if (password === undefined) {
+            password = prompt(`'${roomName}' のパスワードを入力してください:`);
+        }
+        if (password !== null) {
+            lastJoinAttempt = { roomName, password };
+            socket.emit('attempt join room', { roomName, password });
+        }
+    }
+});
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value && currentRoom) {
+        socket.emit('chat message', { room: currentRoom, name: userName, text: input.value, imageUrl: null });
+        input.value = '';
+    }
+});
+imageUploadBtn.addEventListener('click', () => {
+    if (!currentRoom) return alert('画像をアップロードするには、まずトークルームを選択してください。');
+    imageInput.click();
+});
+imageInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch('/upload', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (response.ok) {
+        socket.emit('chat message', { room: currentRoom, name: userName, text: null, imageUrl: result.imageUrl });
+    }
+    e.target.value = '';
+});
+
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★                                                  ★
+// ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
+// ★                                                  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+userList.addEventListener('click', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return; // liがなければ何もしない
+
+    // アイコン変更の処理
+    if (li.querySelector('#my-avatar')) {
+        iconInput.click();
+        return;
+    }
+
+    // 個人チャット開始の処理
+    const targetUserName = li.dataset.username;
+    if (targetUserName && targetUserName !== userName) {
+        if (confirm(`${targetUserName}さんと個人チャットを開始しますか？`)) {
+            socket.emit('start private chat', targetUserName);
+        }
+    }
+});
+
+iconInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('icon', file);
+    formData.append('userName', userName);
+    await fetch('/upload-icon', { method: 'POST', body: formData });
+    e.target.value = '';
+});
+cancelBtns.forEach(btn => btn.addEventListener('click', () => createRoomDialog.close()));
+
+// --- Socket.IOイベントハンドラ (変更なし) ---
+socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
+socket.on('update rooms', (rooms) => {
+    myRoomsInfo = {};
+    if(Array.isArray(rooms)) {
+        rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; });
+    }
+    renderRoomList(rooms || []);
+});
+socket.on('update user list', renderUserList);
+socket.on('user icon changed', ({ userName: changedUser, newIconUrl }) => {
+    if (changedUser === userName) myIconUrl = newIconUrl;
+    // ユーザーリストを再描画してアイコンを更新
+    const users = Array.from(userList.children).map(li => {
+        const name = li.dataset.username;
+        const img = li.querySelector('img');
+        return { name, icon_url: name === changedUser ? newIconUrl : img.src };
+    });
+    renderUserList(users);
+});
+socket.on('join success', (data) => {
+    currentRoom = data.roomName;
+    currentRoomNameEl.textContent = currentRoom;
+    messages.innerHTML = '';
+    data.history.forEach(msg => messages.appendChild(createMessageElement(msg)));
+    chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+    if (lastJoinAttempt.roomName === currentRoom) {
+        roomCredentials[currentRoom] = lastJoinAttempt.password;
+        saveCredentials();
+    }
+    renderRoomList(Object.keys(myRoomsInfo).map(name => ({ name, ...myRoomsInfo[name] })));
+});
+socket.on('join failure', (errorMessage) => {
+    alert(errorMessage);
+    if (lastJoinAttempt.roomName) delete roomCredentials[lastJoinAttempt.roomName];
+    saveCredentials();
+});
+socket.on('chat message', (msg) => {
+    if (msg.room === currentRoom) {
+        messages.appendChild(createMessageElement(msg.data));
+        chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+    }
+});
+
+// --- アプリケーション開始 ---
+function main() {
+    initializeCredentials();
+    initializeUserName();
+    socket.emit('user connected', userName);
+}
+
+main();
