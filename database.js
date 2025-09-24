@@ -1,11 +1,12 @@
-// database.js (Supabase接続用)
+// database.js (あなたの設定に合わせた最終版)
 const { Pool } = require('pg');
 
-// Renderの環境変数からデータベース接続文字列を取得
-const connectionString = process.env.DATABASE_URL;
+// Renderの環境変数から、あなたが設定した正しいKeyの名前で接続文字列を取得
+const connectionString = process.env.SUPABASE_DATABASE_URL; // ★★★ ここを修正しました ★★★
 
 if (!connectionString) {
-    throw new Error("DATABASE_URL environment variable is not set!");
+    // もし環境変数が見つからなかった場合にエラーを出す
+    throw new Error("SUPABASE_DATABASE_URL environment variable is not set!");
 }
 
 const pool = new Pool({
