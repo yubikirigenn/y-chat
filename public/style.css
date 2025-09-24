@@ -90,7 +90,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .dialog-buttons .cancel-btn { background-color: #f0f0f0; color: #333; }
 
 
-/* ★★★ Message Layout (最終修正版) ★★★ */
+/* ★★★ Message Layout (最終修正版 v2) ★★★ */
 
 /* メッセージ全体（アバター含む）のコンテナ */
 .message-item {
@@ -98,7 +98,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     gap: 10px;
     max-width: 70%;
     align-self: flex-start; /* デフォルトは左寄せ */
-    align-items: flex-start; /* アバターとコンテンツの上端を揃える */
+    align-items: flex-start;
 }
 
 /* 自分のメッセージの場合のレイアウト反転と右寄せ */
@@ -112,14 +112,14 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    flex-shrink: 0; /* 縮まないようにする */
+    flex-shrink: 0;
 }
 
 /* 名前、吹き出し、ステータスをまとめるラッパー */
 .message-wrapper {
     display: flex;
     flex-direction: column;
-    min-width: 0; /* flexアイテムの幅がコンテンツを超えないようにするおまじない */
+    min-width: 0;
 }
 
 /* 送信者名 */
@@ -130,18 +130,21 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     white-space: nowrap;
 }
 .my-message .sender-name {
-    display: none; /* 自分の名前は表示しない */
+    display: none;
 }
 
 /* 吹き出しとステータスをまとめるコンテナ */
 .message-content {
     display: flex;
-    align-items: flex-end; /* 吹き出しとステータスを下端で揃える */
-    gap: 8px;
+    flex-direction: column;   /* ★ 変更：子要素を縦に並べる */
+    align-items: flex-start;  /* ★ 追加：相手メッセージは左揃え */
 }
+
+/* ★ 追加：自分のメッセージの時は、コンテナの中身を右に揃える */
 .my-message .message-content {
-    flex-direction: row-reverse; /* 吹き出しとステータスの順序を反転 */
+    align-items: flex-end;
 }
+
 
 /* 吹き出し */
 .message-bubble {
@@ -149,7 +152,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     border-radius: 18px;
     position: relative;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    white-space: nowrap; /* ★幅計算のためのトリック1 */
+    white-space: nowrap;
 }
 .my-message .message-bubble {
     background-color: var(--my-bubble-color);
@@ -164,8 +167,8 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .message-bubble .message-text,
 .message-bubble p {
     margin: 0;
-    white-space: normal;   /* ★幅計算のためのトリック2 */
-    word-break: break-all; /* ★長い単語でも強制的に改行させる */
+    white-space: normal;
+    word-break: break-all;
 }
 .message-bubble img {
     max-width: 100%;
@@ -176,11 +179,14 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 
 /* 既読・時刻のコンテナ */
 .status-container {
-    flex-shrink: 0; /* 縮まないようにする */
+    flex-shrink: 0;
     font-size: 0.75rem;
     color: #888;
-    white-space: nowrap; /* 「既読」と時刻が改行しないようにする */
-    margin-bottom: 2px;
+    white-space: nowrap;
+    margin-top: 2px; /* 吹き出しとの隙間 */
+}
+.my-message .status-container {
+    /* 右揃えは親の .my-message .message-content で制御するので、ここは不要 */
 }
 
 /* 削除ボタン */
