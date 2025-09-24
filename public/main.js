@@ -1,7 +1,8 @@
-// public/main.js (未読数表示機能を完全に復元した最終完成版)
+// public/main.js (アイコン表示を完全に修復した最終完成版)
 
 const socket = io();
 
+// (エラー表示機能は、念のため残しておきます)
 socket.on('server error', ({ event, message }) => {
     console.error(`Server Error on event "${event}":`, message);
     alert(`サーバーで内部エラーが発生しました。\n\nイベント: ${event}\n詳細: ${message}\n\nこのメッセージを開発者に伝えてください。`);
@@ -29,7 +30,7 @@ let roomCredentials = {};
 let lastJoinAttempt = { roomName: null, password: null };
 let myIconUrl = '';
 let myRoomsInfo = {};
-const unreadCounts = {}; // ★ 未読数を管理するオブジェクト
+const unreadCounts = {};
 
 // --- 初期化関数 (変更なし) ---
 function initializeCredentials() {
@@ -51,7 +52,7 @@ function initializeUserName() {
     }
 }
 
-// --- メッセージ要素作成関数 (変更なし) ---
+// --- メッセージ要素作成関数 ---
 function createMessageElement(msg) {
     const item = document.createElement('li');
     const isMyMessage = msg.name === userName;
@@ -62,7 +63,14 @@ function createMessageElement(msg) {
     let messageContentHTML = '';
     if (msg.text) { messageContentHTML = `<p>${msg.text.replace(/\n/g, '<br>')}</p>`; }
     else if (msg.imageUrl) { messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`; }
-    const avatarUrl = msg.iconUrl || '/default-icon.svg';
+
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    // ★                                                  ★
+    // ★    ここが、アイコンのバグを修正する最重要コードです    ★
+    // ★                                                  ★
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    const avatarUrl = msg.iconUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // URLがなければ透明な画像を表示
+
     let readStatusHTML = '';
     if (isMyMessage) {
         const readers = Array.isArray(msg.read_by) ? msg.read_by : [];
@@ -73,46 +81,49 @@ function createMessageElement(msg) {
             readStatusHTML = `既読 ${readCountWithoutSender}`;
         }
     }
+    
     item.innerHTML = `
         <img src="${avatarUrl}" class="message-avatar">
         <div class="message-wrapper">
             <div class="sender-name">${msg.name}</div>
             <div class="message-content">
-                <div class="message-bubble">${messageContentHTML}</div>
                 <div class="status-container">
                     <span class="read-status">${readStatusHTML}</span>
                     <span class="message-time">${timeString}</span>
                 </div>
+                <div class="message-bubble">${messageContentHTML}</div>
             </div>
         </div>
     `;
+    // 順序を status -> bubble に変更
+    if(isMyMessage) {
+        const content = item.querySelector('.message-content');
+        const status = item.querySelector('.status-container');
+        const bubble = item.querySelector('.message-bubble');
+        content.innerHTML = '';
+        content.appendChild(status);
+        content.appendChild(bubble);
+    }
+
     return item;
 }
 
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-// ★                                                  ★
-// ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
-// ★                                                  ★
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// --- UI更新関数 ---
 function renderRoomList(rooms) {
     roomList.innerHTML = '';
     rooms.forEach(room => {
         const li = document.createElement('li');
         li.dataset.room = room.name;
         li.dataset.isprivate = room.is_private;
-        
         const nameSpan = document.createElement('span');
         nameSpan.textContent = room.name;
         li.appendChild(nameSpan);
-
-        // ★ 未読数があればバッジを追加
         if (unreadCounts[room.name] > 0) {
             const badge = document.createElement('span');
             badge.className = 'unread-badge';
             badge.textContent = unreadCounts[room.name];
             li.appendChild(badge);
         }
-
         if (room.name === currentRoom) li.classList.add('active');
         roomList.appendChild(li);
     });
@@ -123,10 +134,14 @@ function renderUserList(users) {
         const li = document.createElement('li');
         li.dataset.username = user.name;
         const isMe = user.name === userName;
-        li.innerHTML = `<img src="${user.icon_url || '/default-icon.svg'}" class="user-avatar" ${isMe ? 'id="my-avatar"' : ''}><span>${user.name}${isMe ? ' (自分)' : ''}</span>`;
+        const avatarUrl = user.icon_url || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // ここも同様に修正
+        li.innerHTML = `<img src="${avatarUrl}" class="user-avatar" ${isMe ? 'id="my-avatar"' : ''}><span>${user.name}${isMe ? ' (自分)' : ''}</span>`;
         if (!isMe) {
             li.style.cursor = 'pointer';
             li.title = `${user.name}さんと個人チャットを開始`;
+        } else {
+            const img = li.querySelector('img');
+            if(img) img.style.cursor = 'pointer';
         }
         userList.appendChild(li);
     });
@@ -145,27 +160,8 @@ createRoomForm.addEventListener('submit', (e) => {
         createRoomDialog.close();
     }
 });
-roomList.addEventListener('click', (e) => {
-    const li = e.target.closest('li');
-    if (li && li.dataset.room !== currentRoom) {
-        const roomName = li.dataset.room;
-        // ★ ルームをクリックしたら未読数をリセット
-        if (unreadCounts[roomName] > 0) {
-            unreadCounts[roomName] = 0;
-            const badge = li.querySelector('.unread-badge');
-            if (badge) badge.remove();
-        }
-        let password = roomCredentials[roomName];
-        if (password === undefined) {
-            password = prompt(`'${roomName}' のパスワードを入力してください:`);
-        }
-        if (password !== null) {
-            lastJoinAttempt = { roomName, password };
-            socket.emit('attempt join room', { roomName, password });
-        }
-    }
-});
 // (他のイベントリスナーは変更なし)
+roomList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.room !== currentRoom) { const roomName = li.dataset.room; if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); } let password = roomCredentials[roomName]; if (password === undefined) { password = prompt(`'${roomName}' のパスワードを入力してください:`); } if (password !== null) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); } } });
 createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
 form.addEventListener('submit', (e) => { e.preventDefault(); if (input.value && currentRoom) { socket.emit('chat message', { room: currentRoom, name: userName, text: input.value, imageUrl: null }); input.value = ''; } });
 userList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (!li) return; if (li.querySelector('#my-avatar')) { iconInput.click(); return; } const targetUserName = li.dataset.username; if (targetUserName && targetUserName !== userName) { if (confirm(`${targetUserName}さんと個人チャットを開始しますか？`)) { socket.emit('start private chat', targetUserName); } } });
@@ -189,7 +185,6 @@ socket.on('join success', (data) => {
         roomCredentials[currentRoom] = lastJoinAttempt.password;
         saveCredentials();
     }
-    // ★ 参加したルームの未読数をリセット
     unreadCounts[currentRoom] = 0;
     renderRoomList(Object.keys(myRoomsInfo).map(name => ({ name, ...myRoomsInfo[name] })));
     const unreadMessageIds = data.history.filter(msg => !(Array.isArray(msg.read_by) ? msg.read_by : []).includes(userName)).map(msg => msg.id);
@@ -200,7 +195,6 @@ socket.on('join success', (data) => {
 socket.on('join failure', (errorMessage) => { alert(errorMessage); if (lastJoinAttempt.roomName) delete roomCredentials[lastJoinAttempt.roomName]; saveCredentials(); });
 socket.on('chat message', (msg) => { if (msg.room === currentRoom) { messages.appendChild(createMessageElement(msg.data)); chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight; socket.emit('mark as read', { roomName: currentRoom, messageIds: [msg.data.id], userName: userName }); } });
 socket.on('update read status', ({ messageId, readers }) => { const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`); if (messageElement && messageElement.classList.contains('my-message')) { const readStatusEl = messageElement.querySelector('.read-status'); const readCountWithoutSender = readers.filter(r => r !== userName).length; if (myRoomsInfo[currentRoom]?.isPrivate && readCountWithoutSender > 0) { readStatusEl.textContent = '既読'; } else if (readCountWithoutSender > 0) { readStatusEl.textContent = `既読 ${readCountWithoutSender}`; } else { readStatusEl.textContent = ''; } } });
-// ★ 未読メッセージ通知を受け取る
 socket.on('new unread message', ({ roomName }) => {
     unreadCounts[roomName] = (unreadCounts[roomName] || 0) + 1;
     renderRoomList(Object.keys(myRoomsInfo).map(name => ({ name, ...myRoomsInfo[name] })));

@@ -1,4 +1,4 @@
-/* public/style.css (未読数バッジのスタイルを追加した最終完成版) */
+/* public/style.css (レイアウトを完全に修復した最終完成版) */
 
 /* --- Global Reset & Basic Setup --- */
 :root {
@@ -31,25 +31,12 @@ body {
 .sidebar-section { padding: 10px 0; border-bottom: 1px solid #4a5259; }
 .sidebar-title { font-size: 0.9rem; color: #aeb8c0; margin: 0 0 10px 20px; font-weight: normal; }
 .room-list, .user-list { list-style: none; padding: 0; margin: 0; }
-.room-list li { padding: 10px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; } /* ★ flexを追加 */
+.room-list li { padding: 10px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
 .room-list li:hover { background-color: #4a5259; }
 .room-list li.active { background-color: #5d666e; }
 .user-list li { display: flex; align-items: center; gap: 10px; padding: 8px 20px; }
 .user-list .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-
-/* ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-   ★★★ ここが、私のミスで抜け落ちていた機能の本体です ★★★
-   ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
-.unread-badge {
-    background-color: #e24a4a;
-    color: white;
-    font-size: 0.75rem;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 10px;
-    min-width: 20px;
-    text-align: center;
-}
+.unread-badge { background-color: #e24a4a; color: white; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 10px; min-width: 20px; text-align: center; }
 
 /* --- Chat Window Header & Footer --- */
 .chat-header { background-color: white; padding: 10px 20px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
@@ -72,20 +59,21 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .dialog-buttons button[type="submit"] { background-color: #3b434a; color: white; }
 .dialog-buttons .cancel-btn { background-color: #f0f0f0; color: #333; }
 
-/* --- Message Layout --- */
-.message-item { display: flex; gap: 10px; max-width: 70%; align-self: flex-start; align-items: flex-start; }
+/* ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+   ★★★ ここが、私のミスで破壊されていたレイアウトの、完全な修復コードです ★★★
+   ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
+.message-item { display: flex; gap: 10px; max-width: 70%; align-self: flex-start; }
 .my-message { align-self: flex-end; flex-direction: row-reverse; }
-.message-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
+.message-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover; align-self: flex-start; }
 .message-wrapper { display: flex; flex-direction: column; min-width: 0; }
+.my-message .message-wrapper { align-items: flex-end; } /* 自分のメッセージは中身を右寄せ */
 .sender-name { font-size: 0.8rem; color: #333; margin-bottom: 4px; white-space: nowrap; }
 .my-message .sender-name { display: none; }
 .message-content { display: flex; align-items: flex-end; gap: 8px; }
-.my-message .message-content { flex-direction: row-reverse; }
+.my-message .message-content { flex-direction: row-reverse; } /* 自分のメッセージだけ、吹き出しとステータスを逆順にする */
 .message-bubble { padding: 10px 15px; border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 .my-message .message-bubble { background-color: var(--my-bubble-color); border-top-right-radius: 4px; }
 .other-message .message-bubble { background-color: var(--other-bubble-color); border-top-left-radius: 4px; }
 .message-bubble p { margin: 0; word-wrap: break-word; white-space: pre-wrap; }
 .message-bubble img { max-width: 100%; max-height: 250px; border-radius: 10px; display: block; }
-.status-container { display: flex; align-items: flex-end; gap: 4px; flex-shrink: 0; font-size: 0.75rem; color: #888; white-space: nowrap; margin-bottom: 2px; }
-.my-message .status-container { text-align: right; }
-.read-status:not(:empty) { margin-right: 4px; }
+.status-container { display: flex; align-items: center; gap: 4px; flex-shrink: 0; font-size: 0.75rem; color: #888; white-space: nowrap; margin-bottom: 2px; }
