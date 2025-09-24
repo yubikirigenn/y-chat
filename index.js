@@ -1,4 +1,4 @@
-// index.js (個人チャット機能を完全に復元した最終完成版)
+// index.js (既読機能と自動参加を完全に復元した最終完成版)
 
 const express = require('express');
 const http = require('http');
@@ -95,28 +95,37 @@ io.on('connection', (socket) => {
     // ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
     // ★                                                  ★
     // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    socket.on('start private chat', async (targetUserName) => {
-        const eventName = 'start private chat';
+    socket.on('mark as read', async ({ roomName, messageIds, userName }) => {
+        const eventName = 'mark as read';
         try {
-            // リクエストを送ったユーザーの名前を取得
+            for (const id of messageIds) {
+                const { rows: msgResult } = await db.query('SELECT read_by FROM messages WHERE id = $1', [id]);
+                if (msgResult[0]) {
+                    let readers = msgResult[0].read_by || [];
+                    if (!readers.includes(userName)) {
+                        readers.push(userName);
+                        await db.query('UPDATE messages SET read_by = $1 WHERE id = $2', [JSON.stringify(readers), id]);
+                        // ルーム内の全員に既読状態の更新を通知
+                        io.to(roomName).emit('update read status', { messageId: id, readers });
+                    }
+                }
+            }
+        } catch (error) { handleError(eventName, error); }
+    });
+    
+    socket.on('start private chat', async (targetUserName) => {
+        try {
             const { rows: userResult } = await db.query('SELECT name FROM users WHERE socket_id = $1', [socket.id]);
-            if (!userResult[0]) return; // ユーザーが見つからなければ何もしない
+            if (!userResult[0]) return;
             const currentUserName = userResult[0].name;
-
-            // 2人のユーザー名から、常に同じルーム名を作成 (アルファベット順にソート)
             const roomName = [currentUserName, targetUserName].sort().join('-');
-
-            // そのルーム名が既に存在するか確認
             const { rows: roomResult } = await db.query('SELECT * FROM rooms WHERE name = $1', [roomName]);
-            
-            // もしルームが存在しなければ、新しく作成する
             if (!roomResult[0]) {
                 await db.query('INSERT INTO rooms (name, password, creator, is_private) VALUES ($1, $2, $3, true)', [roomName, '', currentUserName]);
-                // 全員にルームリストの更新を通知
                 const { rows } = await db.query('SELECT name, is_private FROM rooms');
                 io.emit('update rooms', rows);
             }
-        } catch (error) { handleError(eventName, error); }
+        } catch (error) { handleError('start private chat', error); }
     });
 
     socket.on('disconnect', async () => {

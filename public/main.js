@@ -1,8 +1,7 @@
-// public/main.js (個人チャット機能を完全に復元した最終完成版)
+// public/main.js (既読機能と自動参加を完全に復元した最終完成版)
 
 const socket = io();
 
-// (エラー表示機能は、念のため残しておきます)
 socket.on('server error', ({ event, message }) => {
     console.error(`Server Error on event "${event}":`, message);
     alert(`サーバーで内部エラーが発生しました。\n\nイベント: ${event}\n詳細: ${message}\n\nこのメッセージを開発者に伝えてください。`);
@@ -10,7 +9,6 @@ socket.on('server error', ({ event, message }) => {
 
 const roomList = document.getElementById('room-list');
 const userList = document.getElementById('user-list');
-// (他のDOM要素も同様)
 const messages = document.getElementById('messages');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
@@ -51,21 +49,23 @@ function initializeUserName() {
     }
 }
 
-// --- メッセージ要素作成関数 (変更なし) ---
+// --- メッセージ要素作成関数 ---
 function createMessageElement(msg) {
     const item = document.createElement('li');
     const isMyMessage = msg.name === userName;
     item.className = `message-item ${isMyMessage ? 'my-message' : 'other-message'}`;
-    item.dataset.messageId = msg.id;
+    item.dataset.messageId = msg.id; // ★ 既読処理のためにIDを付与
     const date = new Date(msg.time);
     const timeString = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
     let messageContentHTML = '';
     if (msg.text) { messageContentHTML = `<p>${msg.text.replace(/\n/g, '<br>')}</p>`; }
     else if (msg.imageUrl) { messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`; }
     const avatarUrl = msg.iconUrl || '/default-icon.svg';
+
+    // ★ 既読ステータスを計算
     let readStatusHTML = '';
     if (isMyMessage) {
-        const readers = msg.read_by || [];
+        const readers = Array.isArray(msg.read_by) ? msg.read_by : [];
         const readCountWithoutSender = readers.filter(r => r !== userName).length;
         if (myRoomsInfo[currentRoom]?.isPrivate && readCountWithoutSender > 0) {
             readStatusHTML = '既読';
@@ -73,6 +73,7 @@ function createMessageElement(msg) {
             readStatusHTML = `既読 ${readCountWithoutSender}`;
         }
     }
+    
     item.innerHTML = `
         <img src="${avatarUrl}" class="message-avatar">
         <div class="message-wrapper">
@@ -105,11 +106,9 @@ function renderUserList(users) {
     userList.innerHTML = '';
     users.forEach(user => {
         const li = document.createElement('li');
-        // ★ クリックイベントのために、各ユーザーに data-username を付与
         li.dataset.username = user.name;
         const isMe = user.name === userName;
         li.innerHTML = `<img src="${user.icon_url || '/default-icon.svg'}" class="user-avatar" ${isMe ? 'id="my-avatar"' : ''}><span>${user.name}${isMe ? ' (自分)' : ''}</span>`;
-        // ★ 自分以外のユーザーはクリックできるようにカーソルを変更
         if (!isMe) {
             li.style.cursor = 'pointer';
             li.title = `${user.name}さんと個人チャットを開始`;
@@ -119,18 +118,25 @@ function renderUserList(users) {
 }
 
 // --- イベントリスナー ---
-createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
-// (他のイベントリスナーは変更なし)
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★                                                  ★
+// ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
+// ★                                                  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 createRoomForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const roomName = document.getElementById('new-room-name').value.trim();
     const password = document.getElementById('new-room-password').value.trim();
     if (roomName) {
         socket.emit('create room', { roomName, password, creator: userName });
+        // ★ 作成後、自動で参加する
+        lastJoinAttempt = { roomName, password };
+        socket.emit('attempt join room', { roomName, password });
         createRoomForm.reset();
         createRoomDialog.close();
     }
 });
+
 roomList.addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (li && li.dataset.room !== currentRoom) {
@@ -152,6 +158,22 @@ form.addEventListener('submit', (e) => {
         input.value = '';
     }
 });
+userList.addEventListener('click', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    if (li.querySelector('#my-avatar')) {
+        iconInput.click();
+        return;
+    }
+    const targetUserName = li.dataset.username;
+    if (targetUserName && targetUserName !== userName) {
+        if (confirm(`${targetUserName}さんと個人チャットを開始しますか？`)) {
+            socket.emit('start private chat', targetUserName);
+        }
+    }
+});
+// (他のイベントリスナーは変更なし)
+createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
 imageUploadBtn.addEventListener('click', () => {
     if (!currentRoom) return alert('画像をアップロードするには、まずトークルームを選択してください。');
     imageInput.click();
@@ -168,31 +190,6 @@ imageInput.addEventListener('change', async (e) => {
     }
     e.target.value = '';
 });
-
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-// ★                                                  ★
-// ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
-// ★                                                  ★
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-userList.addEventListener('click', (e) => {
-    const li = e.target.closest('li');
-    if (!li) return; // liがなければ何もしない
-
-    // アイコン変更の処理
-    if (li.querySelector('#my-avatar')) {
-        iconInput.click();
-        return;
-    }
-
-    // 個人チャット開始の処理
-    const targetUserName = li.dataset.username;
-    if (targetUserName && targetUserName !== userName) {
-        if (confirm(`${targetUserName}さんと個人チャットを開始しますか？`)) {
-            socket.emit('start private chat', targetUserName);
-        }
-    }
-});
-
 iconInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -204,11 +201,11 @@ iconInput.addEventListener('change', async (e) => {
 });
 cancelBtns.forEach(btn => btn.addEventListener('click', () => createRoomDialog.close()));
 
-// --- Socket.IOイベントハンドラ (変更なし) ---
+// --- Socket.IOイベントハンドラ ---
 socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
 socket.on('update rooms', (rooms) => {
     myRoomsInfo = {};
-    if(Array.isArray(rooms)) {
+    if (Array.isArray(rooms)) {
         rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; });
     }
     renderRoomList(rooms || []);
@@ -216,8 +213,7 @@ socket.on('update rooms', (rooms) => {
 socket.on('update user list', renderUserList);
 socket.on('user icon changed', ({ userName: changedUser, newIconUrl }) => {
     if (changedUser === userName) myIconUrl = newIconUrl;
-    // ユーザーリストを再描画してアイコンを更新
-    const users = Array.from(userList.children).map(li => {
+    const users = Array.from(userList.querySelectorAll('li')).map(li => {
         const name = li.dataset.username;
         const img = li.querySelector('img');
         return { name, icon_url: name === changedUser ? newIconUrl : img.src };
@@ -235,6 +231,18 @@ socket.on('join success', (data) => {
         saveCredentials();
     }
     renderRoomList(Object.keys(myRoomsInfo).map(name => ({ name, ...myRoomsInfo[name] })));
+    
+    // ★ ルームに入ったら、未読メッセージを既読にする
+    const unreadMessageIds = data.history
+        .filter(msg => {
+            const readers = Array.isArray(msg.read_by) ? msg.read_by : [];
+            return !readers.includes(userName);
+        })
+        .map(msg => msg.id);
+
+    if (unreadMessageIds.length > 0) {
+        socket.emit('mark as read', { roomName: currentRoom, messageIds: unreadMessageIds, userName: userName });
+    }
 });
 socket.on('join failure', (errorMessage) => {
     alert(errorMessage);
@@ -245,6 +253,21 @@ socket.on('chat message', (msg) => {
     if (msg.room === currentRoom) {
         messages.appendChild(createMessageElement(msg.data));
         chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+        // ★ 新しいメッセージはすぐに既読にする
+        socket.emit('mark as read', { roomName: currentRoom, messageIds: [msg.data.id], userName: userName });
+    }
+});
+// ★ 既読状態が更新されたら、画面に反映する
+socket.on('update read status', ({ messageId, readers }) => {
+    const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);
+    if (messageElement && messageElement.classList.contains('my-message')) {
+        const readStatusEl = messageElement.querySelector('.read-status');
+        const readCountWithoutSender = readers.filter(r => r !== userName).length;
+        if (myRoomsInfo[currentRoom]?.isPrivate && readCountWithoutSender > 0) {
+            readStatusEl.textContent = '既読';
+        } else if (readCountWithoutSender > 0) {
+            readStatusEl.textContent = `既読 ${readCountWithoutSender}`;
+        }
     }
 });
 
