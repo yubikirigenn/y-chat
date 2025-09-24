@@ -1,13 +1,55 @@
+// main.js (エラー自動修復機能を搭載した完成版)
+
+// --- グローバル変数とDOM要素の取得 ---
 const socket = io();
-const roomList = document.getElementById('room-list'); const userList = document.getElementById('user-list'); const messages = document.getElementById('messages'); const form = document.getElementById('form'); const input = document.getElementById('input'); const currentRoomNameEl = document.getElementById('current-room-name'); const chatMessagesArea = document.getElementById('chat-messages-area'); const createRoomBtn = document.getElementById('create-room-btn'); const createRoomDialog = document.getElementById('create-room-dialog'); const createRoomForm = document.getElementById('create-room-form'); const joinRoomBtn = document.getElementById('join-room-btn'); const joinRoomDialog = document.getElementById('join-room-dialog'); const joinRoomForm = document.getElementById('join-room-form'); const cancelBtns = document.querySelectorAll('.cancel-btn'); const imageUploadBtn = document.getElementById('image-upload-btn'); const imageInput = document.getElementById('image-input'); const iconInput = document.getElementById('icon-input');
-let userName = ''; let currentRoom = ''; let roomCredentials = {}; let lastJoinAttempt = { roomName: null, password: null }; const unreadCounts = {}; let myRoomsInfo = {};
+const roomList = document.getElementById('room-list');
+const userList = document.getElementById('user-list');
+const messages = document.getElementById('messages');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const currentRoomNameEl = document.getElementById('current-room-name');
+const chatMessagesArea = document.getElementById('chat-messages-area');
+const createRoomBtn = document.getElementById('create-room-btn');
+const createRoomDialog = document.getElementById('create-room-dialog');
+const createRoomForm = document.getElementById('create-room-form');
+const joinRoomBtn = document.getElementById('join-room-btn');
+const joinRoomDialog = document.getElementById('join-room-dialog');
+const joinRoomForm = document.getElementById('join-room-form');
+const cancelBtns = document.querySelectorAll('.cancel-btn');
+const imageUploadBtn = document.getElementById('image-upload-btn');
+const imageInput = document.getElementById('image-input');
+const iconInput = document.getElementById('icon-input');
+
+let userName = '';
+let currentRoom = '';
+let roomCredentials = {};
+let lastJoinAttempt = { roomName: null, password: null };
+const unreadCounts = {};
+let myRoomsInfo = {};
 let myIconUrl = '/uploads/icons/default.svg';
 
-function initializeCredentials() { const savedCredentials = localStorage.getItem('roomCredentials'); if (savedCredentials) roomCredentials = JSON.parse(savedCredentials); }
-function saveCredentials() { localStorage.setItem('roomCredentials', JSON.stringify(roomCredentials)); }
-function initializeUserName() { const savedName = localStorage.getItem('chatUserName'); if (savedName) { userName = savedName; } else { while (!userName) { userName = prompt("あなたの名前を入力してください"); if (!userName) alert("名前は必須です。"); } localStorage.setItem('chatUserName', userName); } }
+// --- 初期化関数 ---
+function initializeCredentials() {
+    const savedCredentials = localStorage.getItem('roomCredentials');
+    if (savedCredentials) roomCredentials = JSON.parse(savedCredentials);
+}
+function saveCredentials() {
+    localStorage.setItem('roomCredentials', JSON.stringify(roomCredentials));
+}
+function initializeUserName() {
+    const savedName = localStorage.getItem('chatUserName');
+    if (savedName) {
+        userName = savedName;
+    } else {
+        while (!userName) {
+            userName = prompt("あなたの名前を入力してください");
+            if (!userName) alert("名前は必須です。");
+        }
+        localStorage.setItem('chatUserName', userName);
+    }
+}
 
-// ★★★ ここが修正された createMessageElement 関数 ★★★
+// --- メッセージ要素を作成する関数 ---
 function createMessageElement(msg) {
     const item = document.createElement('li');
     item.className = `message-item ${msg.name === userName ? 'my-message' : 'other-message'}`;
@@ -18,17 +60,22 @@ function createMessageElement(msg) {
     const timeString = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
     const deleteButtonHTML = isMyMessage ? `<button class="delete-btn" title="削除">×</button>` : '';
     let messageContentHTML;
-    if (msg.text) { messageContentHTML = `<p class="message-text">${msg.text.replace(/\n/g, '<br>')}</p>`; }
-    else if (msg.imageUrl) { messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="アップロードされた画像"></a>`; }
+    if (msg.text) {
+        messageContentHTML = `<p class="message-text">${msg.text.replace(/\n/g, '<br>')}</p>`;
+    } else if (msg.imageUrl) {
+        messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="アップロードされた画像"></a>`;
+    }
     let readStatusText = '';
     if (isMyMessage) {
-        const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : msg.read_by || [];
+        const readers = (typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : msg.read_by) || [];
         const readCountWithoutSender = readers.filter(reader => reader !== msg.name).length;
         const isPrivate = myRoomsInfo[currentRoom] ? myRoomsInfo[currentRoom].isPrivate : false;
-        if (isPrivate) { if (readCountWithoutSender >= 1) readStatusText = '既読'; }
-        else { if (readCountWithoutSender > 0) readStatusText = `既読 ${readCountWithoutSender}`; }
+        if (isPrivate) {
+            if (readCountWithoutSender >= 1) readStatusText = '既読';
+        } else {
+            if (readCountWithoutSender > 0) readStatusText = `既読 ${readCountWithoutSender}`;
+        }
     }
-    // ★ BUG FIX: アバターの表示を、自分のメッセージと相手のメッセージで分ける
     const avatarUrl = isMyMessage ? myIconUrl : msg.iconUrl;
     item.innerHTML = `
         <img src="${avatarUrl || '/uploads/icons/default.svg'}" class="message-avatar">
@@ -43,6 +90,7 @@ function createMessageElement(msg) {
     return item;
 }
 
+// --- ルームリストをレンダリングする関数 ---
 function renderRoomList(rooms, activeRoom) {
     roomList.innerHTML = '';
     rooms.forEach(room => {
@@ -52,7 +100,12 @@ function renderRoomList(rooms, activeRoom) {
         const nameSpan = document.createElement('span');
         nameSpan.textContent = room.name;
         li.appendChild(nameSpan);
-        if (unreadCounts[room.name] > 0) { const badge = document.createElement('span'); badge.className = 'unread-badge'; badge.textContent = unreadCounts[room.name]; li.appendChild(badge); }
+        if (unreadCounts[room.name] > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'unread-badge';
+            badge.textContent = unreadCounts[room.name];
+            li.appendChild(badge);
+        }
         if (room.name === activeRoom) li.classList.add('active');
         roomList.appendChild(li);
     });
@@ -61,9 +114,33 @@ function renderRoomList(rooms, activeRoom) {
 // --- イベントリスナー ---
 createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
 joinRoomBtn.addEventListener('click', () => joinRoomDialog.showModal());
-cancelBtns.forEach(btn => { btn.addEventListener('click', () => { createRoomDialog.close(); joinRoomDialog.close(); }); });
-createRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('new-room-name').value.trim(); const password = document.getElementById('new-room-password').value.trim(); if (roomName && password) { socket.emit('create room', { roomName, password, creator: userName }); createRoomForm.reset(); createRoomDialog.close(); } });
-joinRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('join-room-name').value.trim(); const password = document.getElementById('join-room-password').value.trim(); if (roomName && password) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); joinRoomForm.reset(); joinRoomDialog.close(); } });
+cancelBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        createRoomDialog.close();
+        joinRoomDialog.close();
+    });
+});
+createRoomForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const roomName = document.getElementById('new-room-name').value.trim();
+    const password = document.getElementById('new-room-password').value.trim();
+    if (roomName && password) {
+        socket.emit('create room', { roomName, password, creator: userName });
+        createRoomForm.reset();
+        createRoomDialog.close();
+    }
+});
+joinRoomForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const roomName = document.getElementById('join-room-name').value.trim();
+    const password = document.getElementById('join-room-password').value.trim();
+    if (roomName && password) {
+        lastJoinAttempt = { roomName, password };
+        socket.emit('attempt join room', { roomName, password });
+        joinRoomForm.reset();
+        joinRoomDialog.close();
+    }
+});
 roomList.addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (li) {
@@ -99,60 +176,162 @@ userList.addEventListener('click', (e) => {
         }
         return;
     }
-    if (e.target.closest('li')) { const targetUserName = e.target.closest('li').dataset.username; if (targetUserName && targetUserName !== userName && confirm(`${targetUserName}さんと個人チャットを開始しますか？`)) { socket.emit('start private chat', targetUserName); } }
+    if (e.target.closest('li')) {
+        const targetUserName = e.target.closest('li').dataset.username;
+        if (targetUserName && targetUserName !== userName && confirm(`${targetUserName}さんと個人チャットを開始しますか？`)) {
+            socket.emit('start private chat', targetUserName);
+        }
+    }
 });
-messages.addEventListener('click', (e) => { if (e.target.closest('.delete-btn')) { const li = e.target.closest('li'); if (li) { const messageId = li.dataset.messageId; if (confirm('このメッセージを削除しますか？')) { socket.emit('delete message', { roomId: currentRoom, messageId }); } } } });
-form.addEventListener('submit', (e) => { e.preventDefault(); if (input.value) { if (currentRoom) { socket.emit('chat message', { name: userName, text: input.value }); input.value = ''; } else { alert('メッセージを送信するには、まずトークルームを選択してください。'); } } });
-imageUploadBtn.addEventListener('click', () => { if (!currentRoom) { alert('画像をアップロードするには、まずトークルームを選択してください。'); return; } imageInput.click(); });
-imageInput.addEventListener('change', async (e) => { const file = e.target.files[0]; if (!file) return; const formData = new FormData(); formData.append('image', file); try { const response = await fetch('/upload', { method: 'POST', body: formData }); const result = await response.json(); if (response.ok) { socket.emit('chat message', { name: userName, imageUrl: result.imageUrl }); } else { alert('画像のアップロードに失敗しました。'); } } catch (error) { console.error('アップロードエラー:', error); alert('画像のアップロード中にエラーが発生しました。'); } e.target.value = null; });
-iconInput.addEventListener('change', async (e) => { const file = e.target.files[0]; if (!file) return; const formData = new FormData(); formData.append('icon', file); formData.append('userName', userName); try { const response = await fetch('/upload-icon', { method: 'POST', body: formData }); const result = await response.json(); if (response.ok) { myIconUrl = result.iconUrl; } else { alert('アイコンのアップロードに失敗しました。'); } } catch (error) { console.error('アイコンアップロードエラー:', error); } e.target.value = null; });
+messages.addEventListener('click', (e) => {
+    if (e.target.closest('.delete-btn')) {
+        const li = e.target.closest('li');
+        if (li) {
+            const messageId = li.dataset.messageId;
+            if (confirm('このメッセージを削除しますか？')) {
+                socket.emit('delete message', { roomId: currentRoom, messageId });
+            }
+        }
+    }
+});
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value && currentRoom) {
+        socket.emit('chat message', { room: currentRoom, name: userName, text: input.value });
+        input.value = '';
+    }
+});
+imageUploadBtn.addEventListener('click', () => {
+    if (!currentRoom) {
+        alert('画像をアップロードするには、まずトークルームを選択してください。');
+        return;
+    }
+    imageInput.click();
+});
+imageInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+        const response = await fetch('/upload', { method: 'POST', body: formData });
+        const result = await response.json();
+        if (response.ok) {
+            socket.emit('chat message', { room: currentRoom, name: userName, imageUrl: result.imageUrl });
+        } else {
+            alert('画像のアップロードに失敗しました。');
+        }
+    } catch (error) {
+        console.error('アップロードエラー:', error);
+    }
+    e.target.value = null;
+});
+iconInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('icon', file);
+    formData.append('userName', userName);
+    try {
+        const response = await fetch('/upload-icon', { method: 'POST', body: formData });
+        if (!response.ok) alert('アイコンのアップロードに失敗しました。');
+    } catch (error) {
+        console.error('アイコンアップロードエラー:', error);
+    }
+    e.target.value = null;
+});
 
 // --- Socket.IOイベント ---
-socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; socket.emit('request user list'); });
+socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
 socket.on('user icon changed', ({ userName: changedUserName, newIconUrl }) => {
-    if (changedUserName === userName) { myIconUrl = newIconUrl; }
-    socket.emit('request user list');
-    const avatars = document.querySelectorAll(`.message-item[data-sender-name="${changedUserName}"] .message-avatar`);
-    avatars.forEach(avatar => { avatar.src = newIconUrl; });
+    if (changedUserName === userName) { myIconUrl = newIconUrl; document.getElementById('my-avatar')?.setAttribute('src', newIconUrl); }
+    document.querySelectorAll(`.user-list li[data-username="${changedUserName}"] .user-avatar`).forEach(img => img.src = newIconUrl);
+    document.querySelectorAll(`.message-item[data-sender-name="${changedUserName}"] .message-avatar`).forEach(img => img.src = newIconUrl);
 });
 socket.on('update user list', (users) => {
     userList.innerHTML = '';
     const me = users.find(user => user.name === userName);
-    const others = users.filter(user => user.name !== userName);
     if (me) {
         const myLi = document.createElement('li');
         myLi.dataset.username = me.name;
-        myLi.innerHTML = `<div class="my-user-entry"><img id="my-avatar" src="${me.icon_url}" class="user-avatar" title="アイコンを変更"><span style="flex-grow: 1;">${me.name} (自分)</span><button class="edit-name-btn">編集</button></div>`;
+        myLi.innerHTML = `<div class="my-user-entry"><img id="my-avatar" src="${me.icon_url}" class="user-avatar" title="アイコンを変更"><span>${me.name} (自分)</span><button class="edit-name-btn">編集</button></div>`;
         userList.appendChild(myLi);
     }
-    others.forEach(user => {
+    users.filter(user => user.name !== userName).forEach(user => {
         const li = document.createElement('li');
         li.dataset.username = user.name;
         li.innerHTML = `<img src="${user.icon_url}" class="user-avatar"><span>${user.name}</span>`;
         userList.appendChild(li);
     });
 });
-socket.on('update rooms', (rooms) => { myRoomsInfo = {}; rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; }); renderRoomList(rooms, currentRoom); });
+socket.on('update rooms', (rooms) => {
+    myRoomsInfo = {};
+    rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; });
+    renderRoomList(rooms, currentRoom);
+});
 socket.on('force refresh rooms', () => socket.emit('user connected', userName));
 socket.on('join success', (data) => {
-    currentRoom = data.roomName; currentRoomNameEl.textContent = currentRoom;
+    currentRoom = data.roomName;
+    currentRoomNameEl.textContent = currentRoom;
     messages.innerHTML = '';
-    if (data.isPrivate !== undefined) { myRoomsInfo[currentRoom] = { isPrivate: data.isPrivate }; }
+    if (data.isPrivate !== undefined) myRoomsInfo[currentRoom] = { isPrivate: data.isPrivate };
     const unreadMessageIds = [];
     data.history.forEach(msg => {
-        const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : [];
-        if (!readers.includes(userName)) { unreadMessageIds.push(msg.id); }
+        const readers = typeof msg.read_by === 'string' ? JSON.parse(msg.read_by) : (msg.read_by || []);
+        if (!readers.includes(userName)) unreadMessageIds.push(msg.id);
         messages.appendChild(createMessageElement(msg));
     });
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
-    if (unreadMessageIds.length > 0) { socket.emit('mark as read', { roomName: currentRoom, messageIds: unreadMessageIds }); }
-    if (data.roomName === lastJoinAttempt.roomName && lastJoinAttempt.password !== null) { roomCredentials[data.roomName] = lastJoinAttempt.password; saveCredentials(); }
-    document.querySelectorAll('.room-list li, .user-list li').forEach(li => li.classList.remove('active'));
+    if (unreadMessageIds.length > 0) socket.emit('mark as read', { roomName: currentRoom, messageIds: unreadMessageIds });
+    if (data.roomName === lastJoinAttempt.roomName && lastJoinAttempt.password !== null) {
+        roomCredentials[data.roomName] = lastJoinAttempt.password;
+        saveCredentials();
+    }
+    document.querySelectorAll('.room-list li').forEach(li => li.classList.remove('active'));
     document.querySelector(`.room-list li[data-room="${currentRoom}"]`)?.classList.add('active');
 });
-socket.on('join failure', (errorMessage) => alert(errorMessage));
-socket.on('chat message', (msg) => { const messageRoom = msg.room; const messageData = msg.data; if (messageRoom === currentRoom) { messages.appendChild(createMessageElement(messageData)); socket.emit('mark as read', { roomName: currentRoom, messageIds: [messageData.id] }); } else { unreadCounts[messageRoom] = (unreadCounts[messageRoom] || 0) + 1; const li = document.querySelector(`.room-list li[data-room="${messageRoom}"]`); if (li) { let badge = li.querySelector('.unread-badge'); if (!badge) { badge = document.createElement('span'); badge.className = 'unread-badge'; li.appendChild(badge); } badge.textContent = unreadCounts[messageRoom]; } } });
-socket.on('message deleted', ({ messageId }) => { const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`); if (messageElement) { messageElement.remove(); } });
+
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★                                                  ★
+// ★     ここが今回の問題を解決する最重要コードです     ★
+// ★                                                  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+socket.on('join failure', (errorMessage) => {
+    alert(errorMessage);
+    // パスワードが違うと言われた場合、ブラウザに保存された古いパスワード情報を自動で削除する
+    if (lastJoinAttempt.roomName && roomCredentials[lastJoinAttempt.roomName]) {
+        delete roomCredentials[lastJoinAttempt.roomName];
+        saveCredentials(); // localStorageを更新
+        console.log(`Incorrect credentials for room "${lastJoinAttempt.roomName}". Cleared from storage.`);
+        // ユーザーに再試行を促す
+        alert(`保存されていたパスワード情報が正しくないため削除しました。もう一度ルームを選択して、正しいパスワードを入力してください。`);
+    }
+});
+
+socket.on('chat message', (msg) => {
+    const messageRoom = msg.room;
+    const messageData = msg.data;
+    if (messageRoom === currentRoom) {
+        messages.appendChild(createMessageElement(messageData));
+        chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+        socket.emit('mark as read', { roomName: currentRoom, messageIds: [messageData.id] });
+    } else {
+        unreadCounts[messageRoom] = (unreadCounts[messageRoom] || 0) + 1;
+        const li = document.querySelector(`.room-list li[data-room="${messageRoom}"]`);
+        if (li) {
+            let badge = li.querySelector('.unread-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'unread-badge';
+                li.appendChild(badge);
+            }
+            badge.textContent = unreadCounts[messageRoom];
+        }
+    }
+});
+socket.on('message deleted', ({ messageId }) => {
+    document.querySelector(`li[data-message-id="${messageId}"]`)?.remove();
+});
 socket.on('update read status', ({ messageId, readers }) => {
     const messageElement = document.querySelector(`li[data-message-id="${messageId}"]`);
     if (messageElement && messageElement.classList.contains('my-message')) {
@@ -160,16 +339,20 @@ socket.on('update read status', ({ messageId, readers }) => {
         if (readStatusEl) {
             const readCountWithoutSender = readers.filter(reader => reader !== userName).length;
             const isPrivate = myRoomsInfo[currentRoom] ? myRoomsInfo[currentRoom].isPrivate : false;
-            if (isPrivate) { if (readCountWithoutSender >= 1) readStatusEl.textContent = '既読'; }
-            else { if (readCountWithoutSender > 0) { readStatusEl.textContent = `既読 ${readCountWithoutSender}`; } else { readStatusEl.textContent = ''; } }
+            if (isPrivate) {
+                if (readCountWithoutSender >= 1) readStatusEl.textContent = '既読';
+            } else {
+                readStatusEl.textContent = readCountWithoutSender > 0 ? `既読 ${readCountWithoutSender}` : '';
+            }
         }
     }
 });
 
 // --- 初期化処理 ---
-async function main() {
-    initializeUserName();
+function main() {
     initializeCredentials();
+    initializeUserName();
     socket.emit('user connected', userName);
 }
+
 main();
