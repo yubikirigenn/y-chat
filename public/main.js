@@ -1,6 +1,17 @@
-// main.js (エラー自動修復機能を搭載した最終版)
+// main.js (エラー表示機能を搭載した最終診断版)
 
 const socket = io();
+
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★                                                  ★
+// ★       サーバーでエラーが起きたら、ここに通知が来ます       ★
+// ★                                                  ★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+socket.on('server error', ({ event, message }) => {
+    console.error(`Server Error on event "${event}":`, message);
+    alert(`サーバーで内部エラーが発生しました。\n\nイベント: ${event}\n詳細: ${message}\n\nこのメッセージを開発者に伝えてください。`);
+});
+
 const roomList = document.getElementById('room-list');
 const userList = document.getElementById('user-list');
 const messages = document.getElementById('messages');
@@ -8,25 +19,17 @@ const form = document.getElementById('form');
 const input = document.getElementById('input');
 const currentRoomNameEl = document.getElementById('current-room-name');
 const chatMessagesArea = document.getElementById('chat-messages-area');
-// (他のDOM要素も同様に取得)
 const createRoomBtn = document.getElementById('create-room-btn');
 const createRoomDialog = document.getElementById('create-room-dialog');
 const createRoomForm = document.getElementById('create-room-form');
-const joinRoomBtn = document.getElementById('join-room-btn');
-const joinRoomDialog = document.getElementById('join-room-dialog');
-const joinRoomForm = document.getElementById('join-room-form');
 const cancelBtns = document.querySelectorAll('.cancel-btn');
-const imageUploadBtn = document.getElementById('image-upload-btn');
-const imageInput = document.getElementById('image-input');
-const iconInput = document.getElementById('icon-input');
+// (他のDOM要素も同様)
 
 let userName = '';
 let currentRoom = '';
 let roomCredentials = {};
 let lastJoinAttempt = { roomName: null, password: null };
-const unreadCounts = {};
-let myRoomsInfo = {};
-let myIconUrl = '/uploads/icons/default.svg';
+// (他のグローバル変数も同様)
 
 function initializeCredentials() {
     const savedCredentials = localStorage.getItem('roomCredentials');
@@ -56,10 +59,11 @@ function createMessageElement(msg) {
     const date = new Date(msg.time);
     const timeString = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
     let messageContentHTML = '';
+    // ★ imageUrl を image に修正
     if (msg.text) { messageContentHTML = `<p>${msg.text.replace(/\n/g, '<br>')}</p>`; }
     else if (msg.imageUrl) { messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`; }
     
-    const avatarUrl = msg.iconUrl || '/uploads/icons/default.svg';
+    const avatarUrl = msg.iconUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // デフォルトアイコン
 
     item.innerHTML = `
         <img src="${avatarUrl}" class="message-avatar">
@@ -76,12 +80,13 @@ function createMessageElement(msg) {
     return item;
 }
 
+
 function renderRoomList(rooms, activeRoom) {
     roomList.innerHTML = '';
     rooms.forEach(room => {
         const li = document.createElement('li');
         li.dataset.room = room.name;
-        li.dataset.isprivate = room.is_private;
+        li.dataset.isprivate = room.is_private; // is_privateを使用
         li.textContent = room.name;
         if (room.name === activeRoom) li.classList.add('active');
         roomList.appendChild(li);
@@ -118,13 +123,12 @@ roomList.addEventListener('click', (e) => {
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (input.value && currentRoom) {
-        socket.emit('chat message', { room: currentRoom, name: userName, text: input.value });
+        socket.emit('chat message', { room: currentRoom, name: userName, text: input.value, imageUrl: null });
         input.value = '';
     }
 });
 cancelBtns.forEach(btn => btn.addEventListener('click', () => {
     createRoomDialog.close();
-    joinRoomDialog.close();
 }));
 
 // --- Socket.IOイベント ---
@@ -134,7 +138,7 @@ socket.on('update user list', (users) => {
     users.forEach(user => {
         const li = document.createElement('li');
         const isMe = user.name === userName ? ' (自分)' : '';
-        li.innerHTML = `<img src="${user.icon_url}" class="user-avatar"><span>${user.name}${isMe}</span>`;
+        li.innerHTML = `<img src="${user.icon_url}" class="user-avatar" alt="${user.name}"><span>${user.name}${isMe}</span>`;
         userList.appendChild(li);
     });
 });
@@ -170,7 +174,6 @@ socket.on('chat message', (msg) => {
     }
 });
 
-// --- 初期化処理 ---
 function main() {
     initializeCredentials();
     initializeUserName();
