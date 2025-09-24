@@ -52,12 +52,13 @@ function initializeUserName() {
     }
 }
 
+
 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 // ★                                                  ★
 // ★    ここが、アイコンとレイアウトのバグを修正する    ★
 // ★              最重要コードです                      ★
 // ★                                                  ★
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 function createMessageElement(msg) {
     const item = document.createElement('li');
     const isMyMessage = msg.name === userName;
@@ -74,8 +75,10 @@ function createMessageElement(msg) {
         messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`;
     }
 
-    // ★ アイコンURLが存在しない場合は、透明な画像を表示してレイアウト崩れを防ぐ
-    const avatarUrl = msg.iconUrl || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+    // ★ 壊れたアイコンが表示されないように、URLがなければ透明な画像を使い、さらにonerrorで最終防御
+    const transparentPixel = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+    const avatarUrl = msg.iconUrl || transparentPixel;
+    const onErrorScript = `this.onerror=null; this.src='${transparentPixel}';`;
 
     let readStatusText = '';
     if (isMyMessage) {
@@ -88,17 +91,15 @@ function createMessageElement(msg) {
         }
     }
 
-    // ★ CSSが期待する、正しいHTML構造を生成する
+    // ★ CSSが期待する、シンプルで正しいHTML構造を生成
     item.innerHTML = `
-        <img src="${avatarUrl}" class="message-avatar">
+        <img src="${avatarUrl}" class="message-avatar" onerror="${onErrorScript}">
         <div class="message-wrapper">
             <div class="sender-name">${msg.name}</div>
-            <div class="message-content">
-                <div class="message-bubble">${messageContentHTML}</div>
-                <div class="status-container">
-                    <span class="read-status">${readStatusText}</span>
-                    <span class="message-time">${timeString}</span>
-                </div>
+            <div class="message-bubble">${messageContentHTML}</div>
+            <div class="status-container">
+                <span class="read-status">${readStatusText}</span>
+                <span class="message-time">${timeString}</span>
             </div>
         </div>
     `;
@@ -127,18 +128,20 @@ function renderRoomList(rooms) {
 }
 function renderUserList(users) {
     userList.innerHTML = '';
+    const transparentPixel = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+    const onErrorScript = `this.onerror=null; this.src='${transparentPixel}';`;
     users.forEach(user => {
         const li = document.createElement('li');
         li.dataset.username = user.name;
         const isMe = user.name === userName;
-        const avatarUrl = user.icon_url || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // ここも同様に修正
-        li.innerHTML = `<img src="${avatarUrl}" class="user-avatar" ${isMe ? 'id="my-avatar"' : ''}><span>${user.name}${isMe ? ' (自分)' : ''}</span>`;
+        const avatarUrl = user.icon_url || transparentPixel;
+        li.innerHTML = `<img src="${avatarUrl}" class="user-avatar" ${isMe ? 'id="my-avatar"' : ''} onerror="${onErrorScript}"><span>${user.name}${isMe ? ' (自分)' : ''}</span>`;
         if (!isMe) {
             li.style.cursor = 'pointer';
             li.title = `${user.name}さんと個人チャットを開始`;
         } else {
             const img = li.querySelector('img');
-            if(img) img.style.cursor = 'pointer';
+            if (img) img.style.cursor = 'pointer';
         }
         userList.appendChild(li);
     });
