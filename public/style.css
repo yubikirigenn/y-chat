@@ -42,9 +42,9 @@ body {
     list-style-type: none;
     margin: 0;
     padding: 0;
-    display: flex; /* ★ 変更 */
-    flex-direction: column; /* ★ 変更 */
-    gap: 20px; /* ★ 変更 (メッセージ間の余白) */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 /* --- Sidebar --- */
@@ -253,7 +253,7 @@ dialog input {
     color: #333;
 }
 
-/* ★★★ Message Layout (修正版) ★★★ */
+/* ★★★ Message Layout (再修正版) ★★★ */
 .message-item {
     display: grid;
     grid-template-columns: 40px auto; /* [Avatar] [Content] */
@@ -264,15 +264,15 @@ dialog input {
     gap: 0 10px;
     max-width: 70%;
     width: -moz-fit-content;
-    width: fit-content; /* コンテンツに合わせた幅に */
-    align-self: flex-start; /* デフォルトは左寄せ */
+    width: fit-content;
+    align-self: flex-start;
 }
 .my-message {
     grid-template-columns: auto 40px;
     grid-template-areas:
         "name ."
         "body avatar";
-    align-self: flex-end; /* 右寄せをこれで実現 */
+    align-self: flex-end;
 }
 
 .message-avatar {
@@ -311,6 +311,9 @@ dialog input {
     border-radius: 18px;
     position: relative;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    /* ★★★ 変更点 Start ★★★ */
+    white-space: nowrap;
+    /* ★★★ 変更点 End ★★★ */
 }
 .my-message .message-bubble {
     background-color: var(--my-bubble-color);
@@ -322,7 +325,10 @@ dialog input {
 }
 .message-bubble p {
     margin: 0;
-    word-wrap: break-word;
+    /* ★★★ 変更点 Start ★★★ */
+    white-space: normal;
+    word-break: break-all;
+    /* ★★★ 変更点 End ★★★ */
 }
 .message-bubble img {
     max-width: 100%;
@@ -339,7 +345,7 @@ dialog input {
     margin-bottom: 2px;
     display: flex;
     flex-direction: column;
-    white-space: nowrap; /* 改行を防ぐ */
+    white-space: nowrap;
 }
 .my-message .status-container {
     align-items: flex-end;
