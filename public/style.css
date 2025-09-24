@@ -44,276 +44,112 @@ body {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 20px; /* メッセージ間の余白 */
 }
 
 /* --- Sidebar --- */
-.sidebar-content {
-    flex-grow: 1;
-    overflow-y: auto;
-}
-.sidebar-footer {
-    flex-shrink: 0;
-    padding: 8px 10px;
-    text-align: right;
-    font-size: 0.7rem;
-    color: #888;
-    border-top: 1px solid #4a5259;
-}
-.sidebar-header {
-    padding: 10px;
-    border-bottom: 1px solid #4a5259;
-    display: flex;
-    justify-content: flex-end;
-}
-.sidebar-buttons {
-    display: flex;
-    gap: 8px;
-}
-#create-room-btn, #join-room-btn {
-    cursor: pointer;
-    background-color: #2e343a;
-    color: white;
-    border: 1px solid #707980;
-    border-radius: 4px;
-    padding: 6px 12px;
-}
-#create-room-btn {
-    font-size: 16px;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-}
-.sidebar-section {
-    padding: 10px 0;
-    border-bottom: 1px solid #4a5259;
-}
-.sidebar-title {
-    font-size: 0.9rem;
-    color: #aeb8c0;
-    margin: 0 0 10px 20px;
-    font-weight: normal;
-}
-.room-list, .user-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-.room-list li, .user-list li {
-    padding: 10px 20px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.room-list li:hover, .user-list li:hover {
-    background-color: #4a5259;
-}
-.room-list li.active {
-    background-color: #5d666e;
-}
-.user-list li {
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 8px 20px;
-}
-.user-list .my-user-entry {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.user-list .user-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-.user-list .my-user-entry #my-avatar {
-    border: 1px solid white;
-}
-.user-list .my-user-entry span {
-    flex-grow: 1;
-}
-.user-list .edit-name-btn {
-    background: none;
-    border: 1px solid #707980;
-    color: #aeb8c0;
-    border-radius: 4px;
-    padding: 2px 6px;
-    font-size: 0.7rem;
-    flex-shrink: 0;
-}
-.unread-badge {
-    background-color: #e24a4a;
-    color: white;
-    font-size: 0.75rem;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 10px;
-}
+.sidebar-content { flex-grow: 1; overflow-y: auto; }
+.sidebar-footer { flex-shrink: 0; padding: 8px 10px; text-align: right; font-size: 0.7rem; color: #888; border-top: 1px solid #4a5259; }
+.sidebar-header { padding: 10px; border-bottom: 1px solid #4a5259; display: flex; justify-content: flex-end; }
+.sidebar-buttons { display: flex; gap: 8px; }
+#create-room-btn, #join-room-btn { cursor: pointer; background-color: #2e343a; color: white; border: 1px solid #707980; border-radius: 4px; padding: 6px 12px; }
+#create-room-btn { font-size: 16px; width: 32px; height: 32px; padding: 0; }
+.sidebar-section { padding: 10px 0; border-bottom: 1px solid #4a5259; }
+.sidebar-title { font-size: 0.9rem; color: #aeb8c0; margin: 0 0 10px 20px; font-weight: normal; }
+.room-list, .user-list { list-style: none; padding: 0; margin: 0; }
+.room-list li, .user-list li { padding: 10px 20px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.room-list li:hover, .user-list li:hover { background-color: #4a5259; }
+.room-list li.active { background-color: #5d666e; }
+.user-list li { justify-content: flex-start; gap: 10px; padding: 8px 20px; }
+.user-list .my-user-entry { width: 100%; display: flex; align-items: center; gap: 10px; }
+.user-list .user-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+.user-list .my-user-entry #my-avatar { border: 1px solid white; }
+.user-list .my-user-entry span { flex-grow: 1; }
+.user-list .edit-name-btn { background: none; border: 1px solid #707980; color: #aeb8c0; border-radius: 4px; padding: 2px 6px; font-size: 0.7rem; flex-shrink: 0; }
+.unread-badge { background-color: #e24a4a; color: white; font-size: 0.75rem; font-weight: bold; padding: 2px 6px; border-radius: 10px; }
 
 /* --- Chat Window Header & Footer --- */
-.chat-header {
-    background-color: white;
-    padding: 10px 20px;
-    border-bottom: 1px solid #e0e0e0;
-    flex-shrink: 0;
-}
-.chat-header h1 {
-    margin: 0;
-    font-size: 1.1rem;
-}
-.chat-footer {
-    background-color: #f5f5f5;
-    padding: 10px;
-    border-top: 1px solid #e0e0e0;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-#image-upload-btn {
-    flex-shrink: 0;
-    width: 38px;
-    height: 38px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    background-color: white;
-    font-size: 20px;
-    cursor: pointer;
-}
-#form {
-    flex-grow: 1;
-    display: flex;
-}
-#input {
-    flex-grow: 1;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    margin-right: 10px;
-}
-#form > button {
-    padding: 0 20px;
-    border-radius: 5px;
-    background: #3b434a;
-    color: white;
-    border: none;
-    cursor: pointer;
-}
+.chat-header { background-color: white; padding: 10px 20px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
+.chat-header h1 { margin: 0; font-size: 1.1rem; }
+.chat-footer { background-color: #f5f5f5; padding: 10px; border-top: 1px solid #e0e0e0; flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+#image-upload-btn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 5px; border: 1px solid #ccc; background-color: white; font-size: 20px; cursor: pointer; }
+#form { flex-grow: 1; display: flex; }
+#input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-right: 10px; }
+#form > button { padding: 0 20px; border-radius: 5px; background: #3b434a; color: white; border: none; cursor: pointer; }
 
 /* --- Dialogs --- */
-dialog {
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    padding: 20px;
-    width: 300px;
-}
-dialog::backdrop {
-    background-color: rgba(0, 0, 0, 0.5);
-}
-dialog form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-dialog h2 {
-    margin: 0 0 10px 0;
-    font-size: 1.2rem;
-    text-align: center;
-}
-dialog label {
-    font-size: 0.9rem;
-}
-dialog input {
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-.dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 10px;
-}
-.dialog-buttons button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-}
-.dialog-buttons button[type="submit"] {
-    background-color: #3b434a;
-    color: white;
-}
-.dialog-buttons .cancel-btn {
-    background-color: #f0f0f0;
-    color: #333;
-}
+dialog { border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); padding: 20px; width: 300px; }
+dialog::backdrop { background-color: rgba(0, 0, 0, 0.5); }
+dialog form { display: flex; flex-direction: column; gap: 15px; }
+dialog h2 { margin: 0 0 10px 0; font-size: 1.2rem; text-align: center; }
+dialog label { font-size: 0.9rem; }
+dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+.dialog-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.dialog-buttons button { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; }
+.dialog-buttons button[type="submit"] { background-color: #3b434a; color: white; }
+.dialog-buttons .cancel-btn { background-color: #f0f0f0; color: #333; }
 
-/* ★★★ Message Layout (再修正版) ★★★ */
+
+/* ★★★ Message Layout (最終修正版) ★★★ */
+
+/* メッセージ全体（アバター含む）のコンテナ */
 .message-item {
-    display: grid;
-    grid-template-columns: 40px auto; /* [Avatar] [Content] */
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-        ". name"
-        "avatar body";
-    gap: 0 10px;
+    display: flex;
+    gap: 10px;
     max-width: 70%;
-    width: -moz-fit-content;
-    width: fit-content;
-    align-self: flex-start;
-}
-.my-message {
-    grid-template-columns: auto 40px;
-    grid-template-areas:
-        "name ."
-        "body avatar";
-    align-self: flex-end;
+    align-self: flex-start; /* デフォルトは左寄せ */
+    align-items: flex-start; /* アバターとコンテンツの上端を揃える */
 }
 
+/* 自分のメッセージの場合のレイアウト反転と右寄せ */
+.my-message {
+    align-self: flex-end; /* 右寄せ */
+    flex-direction: row-reverse; /* アバターとコンテンツの順序を反転 */
+}
+
+/* アバター */
 .message-avatar {
-    grid-area: avatar;
     width: 40px;
     height: 40px;
     border-radius: 50%;
+    flex-shrink: 0; /* 縮まないようにする */
 }
+
+/* 名前、吹き出し、ステータスをまとめるラッパー */
+.message-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* flexアイテムの幅がコンテンツを超えないようにするおまじない */
+}
+
+/* 送信者名 */
 .sender-name {
-    grid-area: name;
     font-size: 0.8rem;
     color: #333;
     margin-bottom: 4px;
     white-space: nowrap;
-    word-break: keep-all;
 }
 .my-message .sender-name {
-    display: none;
-}
-.other-message .sender-name {
-    margin-left: 5px;
+    display: none; /* 自分の名前は表示しない */
 }
 
-.message-body {
-    grid-area: body;
+/* 吹き出しとステータスをまとめるコンテナ */
+.message-content {
     display: flex;
-    align-items: flex-end;
+    align-items: flex-end; /* 吹き出しとステータスを下端で揃える */
     gap: 8px;
 }
-.my-message .message-body {
-    flex-direction: row-reverse;
+.my-message .message-content {
+    flex-direction: row-reverse; /* 吹き出しとステータスの順序を反転 */
 }
 
+/* 吹き出し */
 .message-bubble {
     padding: 10px 15px;
     border-radius: 18px;
     position: relative;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    /* ★★★ 変更点 Start ★★★ */
-    white-space: nowrap;
-    /* ★★★ 変更点 End ★★★ */
+    white-space: nowrap; /* ★幅計算のためのトリック1 */
 }
 .my-message .message-bubble {
     background-color: var(--my-bubble-color);
@@ -323,12 +159,13 @@ dialog input {
     background-color: var(--other-bubble-color);
     border-top-left-radius: 4px;
 }
+
+/* 吹き出しの中のテキストや画像 */
+.message-bubble .message-text,
 .message-bubble p {
     margin: 0;
-    /* ★★★ 変更点 Start ★★★ */
-    white-space: normal;
-    word-break: break-all;
-    /* ★★★ 変更点 End ★★★ */
+    white-space: normal;   /* ★幅計算のためのトリック2 */
+    word-break: break-all; /* ★長い単語でも強制的に改行させる */
 }
 .message-bubble img {
     max-width: 100%;
@@ -337,31 +174,16 @@ dialog input {
     display: block;
 }
 
+/* 既読・時刻のコンテナ */
 .status-container {
-    flex-shrink: 0;
+    flex-shrink: 0; /* 縮まないようにする */
     font-size: 0.75rem;
     color: #888;
-    text-align: right;
+    white-space: nowrap; /* 「既読」と時刻が改行しないようにする */
     margin-bottom: 2px;
-    display: flex;
-    flex-direction: column;
-    white-space: nowrap;
-}
-.my-message .status-container {
-    align-items: flex-end;
-}
-.other-message .status-container {
-    align-items: flex-start;
-}
-.read-status {
-    margin-right: 4px;
-}
-.my-message .read-status {
-    margin-left: 4px;
-    margin-right: 0;
 }
 
-/* --- Delete Button --- */
+/* 削除ボタン */
 .delete-btn {
     position: absolute;
     top: -8px;
