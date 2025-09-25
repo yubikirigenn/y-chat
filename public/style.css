@@ -85,25 +85,27 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     flex-direction: column;
     min-width: 0;
 }
-.my-message .message-wrapper {
-    align-items: flex-end;
-}
-.other-message .message-wrapper {
-    align-items: flex-start;
-}
 .sender-name {
     font-size: 0.8rem;
     color: #333;
     margin-bottom: 4px;
+    white-space: nowrap;
 }
 .my-message .sender-name {
     display: none;
+}
+.message-content {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+.my-message .message-content {
+    flex-direction: row-reverse;
 }
 .message-bubble {
     padding: 10px 15px;
     border-radius: 18px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    max-width: 100%;
 }
 .my-message .message-bubble {
     background-color: var(--my-bubble-color);
@@ -125,10 +127,9 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
     display: block;
 }
 .status-container {
-    display: flex;
-    gap: 4px;
+    flex-shrink: 0;
     font-size: 0.75rem;
     color: #888;
     white-space: nowrap;
-    margin-top: 4px;
+    margin-bottom: 2px;
 }

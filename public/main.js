@@ -52,7 +52,6 @@ function initializeUserName() {
     }
 }
 
-
 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 // ★                                                  ★
 // ★    ここが、アイコンとレイアウトのバグを修正する    ★
@@ -96,10 +95,12 @@ function createMessageElement(msg) {
         <img src="${avatarUrl}" class="message-avatar" onerror="${onErrorScript}">
         <div class="message-wrapper">
             <div class="sender-name">${msg.name}</div>
-            <div class="message-bubble">${messageContentHTML}</div>
-            <div class="status-container">
-                <span class="read-status">${readStatusText}</span>
-                <span class="message-time">${timeString}</span>
+            <div class="message-content">
+                <div class="message-bubble">${messageContentHTML}</div>
+                <div class="status-container">
+                    <span class="read-status">${readStatusText}</span>
+                    <span class="message-time">${timeString}</span>
+                </div>
             </div>
         </div>
     `;
