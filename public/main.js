@@ -52,7 +52,6 @@ function initializeUserName() {
     }
 }
 
-
 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 // ★                                                  ★
 // ★    ここが、アイコンとレイアウトのバグを修正する    ★
@@ -197,4 +196,4 @@ function main() {
     socket.emit('user connected', userName);
 }
 
-main();``
+main();

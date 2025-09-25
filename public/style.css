@@ -88,9 +88,6 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .my-message .message-wrapper {
     align-items: flex-end;
 }
-.other-message .message-wrapper {
-    align-items: flex-start;
-}
 .sender-name {
     font-size: 0.8rem;
     color: #333;
