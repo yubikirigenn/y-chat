@@ -1,4 +1,4 @@
-// index.js (アイコン履歴取得を完全に修復した最終完成版)
+// index.js (オンラインユーザー管理と個人チャット機能を完全に修復した最終完成版)
 
 const express = require('express');
 const http = require('http');
@@ -46,11 +46,15 @@ io.on('connection', (socket) => {
 
     socket.on('user connected', async (userName) => {
         try {
+            // ★ オンラインになったことをDBに記録
             await db.query('INSERT INTO users (name, socket_id) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET socket_id = $2', [userName, socket.id]);
             const { rows: userRows } = await db.query('SELECT icon_url FROM users WHERE name = $1', [userName]);
             if (userRows[0]) socket.emit('my info', { iconUrl: userRows[0].icon_url });
+
             const { rows: roomRows } = await db.query('SELECT name, is_private FROM rooms');
             io.emit('update rooms', roomRows);
+            
+            // ★ オンラインのユーザー (socket_idがNULLでない) のみを取得
             const { rows: usersRows } = await db.query('SELECT name, icon_url FROM users WHERE socket_id IS NOT NULL');
             io.emit('update user list', usersRows);
         } catch (error) { handleError('user connected', error); }
@@ -63,13 +67,7 @@ io.on('connection', (socket) => {
             io.emit('update rooms', rows);
         } catch (error) { handleError('create room', error); }
     });
-    
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    // ★                                                  ★
-    // ★    ここが、アイコンが表示されないバグの根本原因    ★
-    // ★              を修正したコードです                  ★
-    // ★                                                  ★
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
     socket.on('attempt join room', async ({ roomName, password }) => {
         try {
             const { rows } = await db.query('SELECT * FROM rooms WHERE name = $1', [roomName]);
@@ -80,25 +78,10 @@ io.on('connection', (socket) => {
                 return socket.emit('join failure', 'パスワードが違います。');
             }
             socket.join(roomName);
-            
-            // ★ messagesテーブルとusersテーブルを結合し、各メッセージに送信者のアイコンURLを追加する
             const historyQuery = `
-                SELECT
-                    m.id,
-                    m.sender_name as name,
-                    m.text_content as text,
-                    m.image_url as "imageUrl",
-                    m.timestamp as time,
-                    m.read_by,
-                    u.icon_url as "iconUrl"
-                FROM
-                    messages AS m
-                LEFT JOIN
-                    users AS u ON m.sender_name = u.name
-                WHERE
-                    m.room_name = $1
-                ORDER BY
-                    m.timestamp ASC
+                SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as "imageUrl", m.timestamp as time, m.read_by, u.icon_url as "iconUrl"
+                FROM messages AS m LEFT JOIN users AS u ON m.sender_name = u.name
+                WHERE m.room_name = $1 ORDER BY m.timestamp ASC
             `;
             const { rows: history } = await db.query(historyQuery, [roomName]);
             socket.emit('join success', { roomName, history, isPrivate: room.is_private });
@@ -116,13 +99,38 @@ io.on('connection', (socket) => {
         } catch (error) { handleError('chat message', error); }
     });
     
-    // (他のイベントも、これまでの修正がすべて反映されています)
-    socket.on('mark as read', async ({ roomName, messageIds, userName }) => { /* ... */ });
-    socket.on('start private chat', async (targetUserName) => { /* ... */ });
-    socket.on('disconnect', async () => { /* ... */ });
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    // ★                                                  ★
+    // ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
+    // ★                                                  ★
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    socket.on('start private chat', async (targetUserName) => {
+        try {
+            const { rows: userResult } = await db.query('SELECT name FROM users WHERE socket_id = $1', [socket.id]);
+            if (!userResult[0]) return;
+            const currentUserName = userResult[0].name;
+            const roomName = [currentUserName, targetUserName].sort().join('-');
+            const { rows: roomResult } = await db.query('SELECT * FROM rooms WHERE name = $1', [roomName]);
+            if (!roomResult[0]) {
+                await db.query('INSERT INTO rooms (name, password, creator, is_private) VALUES ($1, $2, $3, true)', [roomName, '', currentUserName]);
+                const { rows } = await db.query('SELECT name, is_private FROM rooms');
+                io.emit('update rooms', rows);
+            }
+        } catch (error) { handleError('start private chat', error); }
+    });
+
+    socket.on('disconnect', async () => {
+        try {
+            console.log(`[Socket] user disconnected: ${socket.id}`);
+            // ★ 切断したユーザーのsocket_idをNULLに戻し、オフラインとして扱う
+            await db.query('UPDATE users SET socket_id = NULL WHERE socket_id = $1', [socket.id]);
+            const { rows } = await db.query('SELECT name, icon_url FROM users WHERE socket_id IS NOT NULL');
+            io.emit('update user list', rows);
+        } catch (error) { handleError('disconnect', error); }
+    });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Server is running and listening on port ${PORT}`);
-});
+});``
