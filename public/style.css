@@ -1,4 +1,4 @@
-/* public/style.css (レイアウトを完全に修復した最終完成版) */
+/* public/style.css (構文エラーを修正した最終完成版) */
 
 /* --- Global Reset & Basic Setup --- */
 :root {
@@ -12,7 +12,9 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
 }
-* { box-sizing: border-box; }
+* { 
+    box-sizing: border-box; 
+}
 
 /* --- Main Layout --- */
 .app-container { display: flex; height: 100vh; }
@@ -59,9 +61,7 @@ dialog input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 .dialog-buttons button[type="submit"] { background-color: #3b434a; color: white; }
 .dialog-buttons .cancel-btn { background-color: #f0f0f0; color: #333; }
 
-/* ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-   ★★★ ここが、私のミスで破壊されていたレイアウトの、完全な修復コードです ★★★
-   ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★ */
+/* --- Message Layout --- */
 .message-item {
     display: flex;
     gap: 10px;

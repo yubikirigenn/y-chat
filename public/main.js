@@ -1,15 +1,13 @@
-// public/main.js (アイコンとHTML構造を完全に修復した最終完成版)
+// public/main.js (すべての構文エラーを修正した最終完成版)
 
 const socket = io();
 
-// (エラー表示機能は、念のため残しておきます)
 socket.on('server error', ({ event, message }) => {
     console.error(`Server Error on event "${event}":`, message);
     alert(`サーバーで内部エラーが発生しました。\n\nイベント: ${event}\n詳細: ${message}\n\nこのメッセージを開発者に伝えてください。`);
 });
 
 const roomList = document.getElementById('room-list');
-// (他のDOM要素も同様)
 const userList = document.getElementById('user-list');
 const messages = document.getElementById('messages');
 const form = document.getElementById('form');
@@ -32,7 +30,6 @@ let myIconUrl = '';
 let myRoomsInfo = {};
 const unreadCounts = {};
 
-// --- 初期化関数 (変更なし) ---
 function initializeCredentials() {
     const saved = localStorage.getItem('roomCredentials');
     if (saved) roomCredentials = JSON.parse(saved);
@@ -52,13 +49,6 @@ function initializeUserName() {
     }
 }
 
-
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-// ★                                                  ★
-// ★    ここが、アイコンとレイアウトのバグを修正する    ★
-// ★              最重要コードです                      ★
-// ★                                                  ★
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 function createMessageElement(msg) {
     const item = document.createElement('li');
     const isMyMessage = msg.name === userName;
@@ -75,7 +65,6 @@ function createMessageElement(msg) {
         messageContentHTML = `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${msg.imageUrl}" alt="画像"></a>`;
     }
 
-    // ★ 壊れたアイコンが表示されないように、URLがなければ透明な画像を使い、さらにonerrorで最終防御
     const transparentPixel = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
     const avatarUrl = msg.iconUrl || transparentPixel;
     const onErrorScript = `this.onerror=null; this.src='${transparentPixel}';`;
@@ -91,7 +80,6 @@ function createMessageElement(msg) {
         }
     }
 
-    // ★ CSSが期待する、シンプルで正しいHTML構造を生成
     item.innerHTML = `
         <img src="${avatarUrl}" class="message-avatar" onerror="${onErrorScript}">
         <div class="message-wrapper">
@@ -108,7 +96,6 @@ function createMessageElement(msg) {
     return item;
 }
 
-// --- UI更新関数 ---
 function renderRoomList(rooms) {
     roomList.innerHTML = '';
     rooms.forEach(room => {
@@ -149,7 +136,6 @@ function renderUserList(users) {
     });
 }
 
-// --- イベントリスナー (変更なし) ---
 createRoomForm.addEventListener('submit', (e) => { e.preventDefault(); const roomName = document.getElementById('new-room-name').value.trim(); const password = document.getElementById('new-room-password').value.trim(); if (roomName) { socket.emit('create room', { roomName, password, creator: userName }); lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); createRoomForm.reset(); createRoomDialog.close(); } });
 roomList.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li && li.dataset.room !== currentRoom) { const roomName = li.dataset.room; if (unreadCounts[roomName] > 0) { unreadCounts[roomName] = 0; const badge = li.querySelector('.unread-badge'); if (badge) badge.remove(); } let password = roomCredentials[roomName]; if (password === undefined) { password = prompt(`'${roomName}' のパスワードを入力してください:`); } if (password !== null) { lastJoinAttempt = { roomName, password }; socket.emit('attempt join room', { roomName, password }); } } });
 createRoomBtn.addEventListener('click', () => createRoomDialog.showModal());
@@ -160,7 +146,6 @@ cancelBtns.forEach(btn => btn.addEventListener('click', () => createRoomDialog.c
 imageUploadBtn.addEventListener('click', () => { if (!currentRoom) return alert('画像をアップロードするには、まずトークルームを選択してください。'); imageInput.click(); });
 imageInput.addEventListener('change', async (e) => { const file = e.target.files[0]; if (!file) return; const formData = new FormData(); formData.append('image', file); const response = await fetch('/upload', { method: 'POST', body: formData }); const result = await response.json(); if (response.ok) { socket.emit('chat message', { room: currentRoom, name: userName, text: null, imageUrl: result.imageUrl }); } e.target.value = ''; });
 
-// --- Socket.IOイベントハンドラ (変更なし) ---
 socket.on('my info', ({ iconUrl }) => { myIconUrl = iconUrl; });
 socket.on('update rooms', (rooms) => { myRoomsInfo = {}; if (Array.isArray(rooms)) { rooms.forEach(room => { myRoomsInfo[room.name] = { isPrivate: room.is_private }; }); } renderRoomList(rooms || []); });
 socket.on('update user list', renderUserList);
@@ -190,7 +175,6 @@ socket.on('new unread message', ({ roomName }) => {
     renderRoomList(Object.keys(myRoomsInfo).map(name => ({ name, ...myRoomsInfo[name] })));
 });
 
-// --- アプリケーション開始 ---
 function main() {
     initializeCredentials();
     initializeUserName();
