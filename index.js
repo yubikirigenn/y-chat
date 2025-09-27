@@ -1,4 +1,4 @@
-// index.js (オンラインユーザー管理と個人チャット機能を完全に修復した最終完成版)
+// index.js (全機能搭載 最終完成版)
 
 const express = require('express');
 const http = require('http');
@@ -13,6 +13,7 @@ const { iconStorage, imageStorage } = require('./cloudinaryConfig.js');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+const userSocketRoomMap = {};
 
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
@@ -38,26 +39,19 @@ app.post('/upload-icon', uploadIcon.single('icon'), async (req, res) => {
 
 io.on('connection', (socket) => {
     console.log(`[Socket] user connected: ${socket.id}`);
-
-    const handleError = (eventName, error) => {
-        console.error(`[Socket Error] on event "${eventName}":`, error);
-        socket.emit('server error', { event: eventName, message: error.message || 'An unknown error occurred.' });
-    };
-
+    
     socket.on('user connected', async (userName) => {
         try {
-            // ★ オンラインになったことをDBに記録
             await db.query('INSERT INTO users (name, socket_id) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET socket_id = $2', [userName, socket.id]);
             const { rows: userRows } = await db.query('SELECT icon_url FROM users WHERE name = $1', [userName]);
             if (userRows[0]) socket.emit('my info', { iconUrl: userRows[0].icon_url });
-
+            
             const { rows: roomRows } = await db.query('SELECT name, is_private FROM rooms');
             io.emit('update rooms', roomRows);
             
-            // ★ オンラインのユーザー (socket_idがNULLでない) のみを取得
             const { rows: usersRows } = await db.query('SELECT name, icon_url FROM users WHERE socket_id IS NOT NULL');
             io.emit('update user list', usersRows);
-        } catch (error) { handleError('user connected', error); }
+        } catch (error) { console.error(error); }
     });
 
     socket.on('create room', async ({ roomName, password, creator }) => {
@@ -65,7 +59,7 @@ io.on('connection', (socket) => {
             await db.query('INSERT INTO rooms (name, password, creator) VALUES ($1, $2, $3)', [roomName, password, creator]);
             const { rows } = await db.query('SELECT name, is_private FROM rooms');
             io.emit('update rooms', rows);
-        } catch (error) { handleError('create room', error); }
+        } catch (error) { console.error(error); }
     });
 
     socket.on('attempt join room', async ({ roomName, password }) => {
@@ -74,18 +68,19 @@ io.on('connection', (socket) => {
             const room = rows[0];
             if (!room) return socket.emit('join failure', 'そのルームは存在しません。');
             const isPasswordProtected = room.password && room.password.length > 0;
-            if (isPasswordProtected && room.password !== password) {
-                return socket.emit('join failure', 'パスワードが違います。');
-            }
+            if (isPasswordProtected && room.password !== password) return socket.emit('join failure', 'パスワードが違います。');
+            
+            Object.keys(socket.rooms).forEach(r => socket.leave(r));
             socket.join(roomName);
+            userSocketRoomMap[socket.id] = roomName;
+            
             const historyQuery = `
                 SELECT m.id, m.sender_name as name, m.text_content as text, m.image_url as "imageUrl", m.timestamp as time, m.read_by, u.icon_url as "iconUrl"
                 FROM messages AS m LEFT JOIN users AS u ON m.sender_name = u.name
-                WHERE m.room_name = $1 ORDER BY m.timestamp ASC
-            `;
+                WHERE m.room_name = $1 ORDER BY m.timestamp ASC`;
             const { rows: history } = await db.query(historyQuery, [roomName]);
             socket.emit('join success', { roomName, history, isPrivate: room.is_private });
-        } catch (error) { handleError('attempt join room', error); }
+        } catch (error) { console.error(error); }
     });
 
     socket.on('chat message', async (msg) => {
@@ -95,15 +90,32 @@ io.on('connection', (socket) => {
             const result = await db.query('INSERT INTO messages (room_name, sender_name, text_content, image_url, read_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, timestamp', [room, msg.name, msg.text, msg.imageUrl, readBy]);
             const { rows: user } = await db.query('SELECT icon_url FROM users WHERE name = $1', [msg.name]);
             const messageData = { id: result.rows[0].id, name: msg.name, text: msg.text, imageUrl: msg.imageUrl, time: result.rows[0].timestamp, iconUrl: user[0]?.icon_url, read_by: [msg.name] };
+            
             io.to(room).emit('chat message', { room, data: messageData });
-        } catch (error) { handleError('chat message', error); }
+            Object.keys(io.sockets.sockets).forEach(socketId => {
+                if (!io.sockets.sockets[socketId].rooms.has(room)) {
+                    io.to(socketId).emit('new unread message', { roomName: room });
+                }
+            });
+        } catch (error) { console.error(error); }
+    });
+
+    socket.on('mark as read', async ({ roomName, messageIds, userName }) => {
+        try {
+            for (const id of messageIds) {
+                const { rows: msgResult } = await db.query('SELECT read_by FROM messages WHERE id = $1', [id]);
+                if (msgResult[0]) {
+                    let readers = msgResult[0].read_by || [];
+                    if (!readers.includes(userName)) {
+                        readers.push(userName);
+                        await db.query('UPDATE messages SET read_by = $1 WHERE id = $2', [JSON.stringify(readers), id]);
+                        io.to(roomName).emit('update read status', { messageId: id, readers });
+                    }
+                }
+            }
+        } catch (error) { console.error(error); }
     });
     
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    // ★                                                  ★
-    // ★    ここが、私のミスで抜け落ちていた機能の本体です    ★
-    // ★                                                  ★
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     socket.on('start private chat', async (targetUserName) => {
         try {
             const { rows: userResult } = await db.query('SELECT name FROM users WHERE socket_id = $1', [socket.id]);
@@ -116,21 +128,18 @@ io.on('connection', (socket) => {
                 const { rows } = await db.query('SELECT name, is_private FROM rooms');
                 io.emit('update rooms', rows);
             }
-        } catch (error) { handleError('start private chat', error); }
+        } catch (error) { console.error(error); }
     });
-
+    
     socket.on('disconnect', async () => {
         try {
-            console.log(`[Socket] user disconnected: ${socket.id}`);
-            // ★ 切断したユーザーのsocket_idをNULLに戻し、オフラインとして扱う
+            delete userSocketRoomMap[socket.id];
             await db.query('UPDATE users SET socket_id = NULL WHERE socket_id = $1', [socket.id]);
             const { rows } = await db.query('SELECT name, icon_url FROM users WHERE socket_id IS NOT NULL');
             io.emit('update user list', rows);
-        } catch (error) { handleError('disconnect', error); }
+        } catch (error) { console.error(error); }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`✅ Server is running and listening on port ${PORT}`);
-});``
+server.listen(PORT, () => { console.log(`✅ Server is running and listening on port ${PORT}`); });

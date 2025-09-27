@@ -1,3 +1,4 @@
+<!-- public/index.html (最終完成版) -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -8,15 +9,13 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- サイドバー -->
         <div class="sidebar">
-            <div class="sidebar-content">
-                <div class="sidebar-header">
-                    <div class="sidebar-buttons">
-                        <button id="create-room-btn" title="新しいトークルームを作成">+</button>
-                        <button id="join-room-btn" title="既存のトークルームに参加">参加</button>
-                    </div>
+            <div class="sidebar-header">
+                <div class="sidebar-buttons">
+                    <button id="create-room-btn" title="新しいトークルームを作成">+</button>
                 </div>
+            </div>
+            <div class="sidebar-content">
                 <div class="sidebar-section">
                     <h2 class="sidebar-title">トークルーム</h2>
                     <ul class="room-list" id="room-list"></ul>
@@ -26,12 +25,7 @@
                     <ul class="user-list" id="user-list"></ul>
                 </div>
             </div>
-            <div class="sidebar-footer">
-                version: 1.0.0
-            </div>
         </div>
-
-        <!-- チャットウィンドウ -->
         <div class="chat-window">
             <header class="chat-header">
                 <h1 id="current-room-name">トークルームを選択してください</h1>
@@ -49,35 +43,20 @@
         </div>
     </div>
 
-    <!-- ダイアログ -->
     <dialog id="create-room-dialog">
         <form id="create-room-form">
             <h2>新しいトークルームを作成</h2>
             <label for="new-room-name">ルーム名:</label>
             <input type="text" id="new-room-name" required>
-            <label for="new-room-password">パスワード:</label>
-            <input type="password" id="new-room-password" required>
+            <label for="new-room-password">パスワード (任意):</label>
+            <input type="password" id="new-room-password">
             <div class="dialog-buttons">
                 <button type="submit">作成</button>
                 <button type="button" class="cancel-btn">キャンセル</button>
             </div>
         </form>
     </dialog>
-    <dialog id="join-room-dialog">
-        <form id="join-room-form">
-            <h2>トークルームに参加</h2>
-            <label for="join-room-name">ルーム名:</label>
-            <input type="text" id="join-room-name" required>
-            <label for="join-room-password">パスワード:</label>
-            <input type="password" id="join-room-password" required>
-            <div class="dialog-buttons">
-                <button type="submit">参加</button>
-                <button type="button" class="cancel-btn">キャンセル</button>
-            </div>
-        </form>
-    </dialog>
 
-    <!-- 非表示のインプット -->
     <input type="file" id="image-input" accept="image/*" hidden>
     <input type="file" id="icon-input" accept="image/*" hidden>
 
