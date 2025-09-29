@@ -7,4 +7,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Supabase URL and Anon Key must be provided.")
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// ユーザーセッションをローカルストレージに保存する設定を追加
+const options = {
+  auth: {
+    storage: localStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, options)
