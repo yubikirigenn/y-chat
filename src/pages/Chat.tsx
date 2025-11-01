@@ -35,7 +35,6 @@ export default function Chat({ session }: ChatProps) {
   const [availableProfiles, setAvailableProfiles] = useState<Profile[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
-  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const user = session.user
@@ -45,15 +44,13 @@ export default function Chat({ session }: ChatProps) {
   }
   
   useEffect(() => { 
-    scrollToBottom() 
+    scrollToBottom()
   }, [messages]);
 
   useEffect(() => {
     if (!roomId) return;
     
     const fetchAllData = async () => {
-      setLoading(true);
-      
       const { data: roomData } = await supabase
         .from('rooms')
         .select('name, is_group')
@@ -71,12 +68,10 @@ export default function Chat({ session }: ChatProps) {
       if (messagesError) { 
         console.error("メッセージ取得エラー:", messagesError); 
         setMessages([]);
-        setLoading(false);
         return; 
       }
       if (!messagesData) { 
         setMessages([]);
-        setLoading(false);
         return; 
       }
 
@@ -84,7 +79,6 @@ export default function Chat({ session }: ChatProps) {
       const userIds = [...new Set(messagesData.map((msg) => msg.user_id))];
       if (userIds.length === 0) { 
         setMessages(messagesData as any);
-        setLoading(false);
         return; 
       }
 
@@ -113,7 +107,10 @@ export default function Chat({ session }: ChatProps) {
         await supabase.from('read_statuses').insert(statuses);
       }
       
-      setLoading(false);
+      // 6. 初回読み込み後、少し遅延させて確実にスクロール
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
     };
     
     fetchAllData();
@@ -245,22 +242,6 @@ export default function Chat({ session }: ChatProps) {
       }
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex flex-col h-screen font-sans bg-[#798696]">
-        <header className="flex items-center justify-between w-full h-12 px-4 bg-[#f6f7f9] border-b border-gray-300 flex-shrink-0">
-          <h1 className="text-lg font-bold text-gray-800">{room?.name || '...'}</h1>
-        </header>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-700 mb-4"></div>
-            <p className="text-gray-700 text-lg">読み込み中...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-screen font-sans bg-[#798696]">
