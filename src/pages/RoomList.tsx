@@ -16,11 +16,13 @@ export default function RoomList({ session }: RoomListProps) {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const location = useLocation()
   const user = session.user
 
   const fetchAllData = async () => {
+    setLoading(true);
     const { data: participationData } = await supabase
       .from('room_participants')
       .select('room_id')
@@ -72,6 +74,8 @@ export default function RoomList({ session }: RoomListProps) {
       ));
       setUnreadCounts(countsMap);
     }
+    
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -220,62 +224,73 @@ export default function RoomList({ session }: RoomListProps) {
         </div>
       ) : (
         <main className="flex-1 overflow-y-auto">
-          <h2 className="p-4 text-sm font-semibold text-gray-400">個人チャット</h2>
-          <ul>
-            {profiles.map(profile => {
-              const roomId = personalRoomMap.get(profile.id);
-              const unreadCount = roomId ? (unreadCounts.get(roomId) || 0) : 0;
-              
-              return (
-                <li 
-                  key={profile.id} 
-                  onClick={() => handleCreatePersonalRoom(profile)}
-                  className="flex items-center justify-between gap-3 p-4 border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-600 flex-shrink-0">
-                      {profile.avatar_public_id && (
-                        <img 
-                          src={`https://res.cloudinary.com/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload/w_40,h_40,c_fill,r_max/${profile.avatar_public_id}`} 
-                          alt="avatar" 
-                          className="w-full h-full rounded-full object-cover" 
-                        />
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                <p className="text-gray-400">読み込み中...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2 className="p-4 text-sm font-semibold text-gray-400">個人チャット</h2>
+              <ul>
+                {profiles.map(profile => {
+                  const roomId = personalRoomMap.get(profile.id);
+                  const unreadCount = roomId ? (unreadCounts.get(roomId) || 0) : 0;
+                  
+                  return (
+                    <li 
+                      key={profile.id} 
+                      onClick={() => handleCreatePersonalRoom(profile)}
+                      className="flex items-center justify-between gap-3 p-4 border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-600 flex-shrink-0">
+                          {profile.avatar_public_id && (
+                            <img 
+                              src={`https://res.cloudinary.com/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload/w_40,h_40,c_fill,r_max/${profile.avatar_public_id}`} 
+                              alt="avatar" 
+                              className="w-full h-full rounded-full object-cover" 
+                            />
+                          )}
+                        </div>
+                        <span>{profile.nickname || profile.username}</span>
+                      </div>
+                      {unreadCount > 0 && (
+                        <span className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
+                          {unreadCount}
+                        </span>
                       )}
-                    </div>
-                    <span>{profile.nickname || profile.username}</span>
-                  </div>
-                  {unreadCount > 0 && (
-                    <span className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                    </li>
+                  );
+                })}
+              </ul>
 
-          <h2 className="p-4 mt-4 text-sm font-semibold text-gray-400">グループ</h2>
-          <ul>
-            {rooms.filter(r => r.is_group).map(room => (
-              <li key={room.id}>
-                <NavLink 
-                  to={`/chat/${room.id}`} 
-                  className={({ isActive }) => 
-                    `flex items-center justify-between p-4 border-b border-gray-700 hover:bg-gray-800 ${
-                      isActive ? 'bg-blue-800' : ''
-                    }`
-                  }
-                >
-                  <span>{room.name || '名称未設定'}</span>
-                  {(unreadCounts.get(room.id) || 0) > 0 && (
-                    <span className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
-                      {unreadCounts.get(room.id)}
-                    </span>
-                  )}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+              <h2 className="p-4 mt-4 text-sm font-semibold text-gray-400">グループ</h2>
+              <ul>
+                {rooms.filter(r => r.is_group).map(room => (
+                  <li key={room.id}>
+                    <NavLink 
+                      to={`/chat/${room.id}`} 
+                      className={({ isActive }) => 
+                        `flex items-center justify-between p-4 border-b border-gray-700 hover:bg-gray-800 ${
+                          isActive ? 'bg-blue-800' : ''
+                        }`
+                      }
+                    >
+                      <span>{room.name || '名称未設定'}</span>
+                      {(unreadCounts.get(room.id) || 0) > 0 && (
+                        <span className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
+                          {unreadCounts.get(room.id)}
+                        </span>
+                      )}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </main>
       )}
     </div>
