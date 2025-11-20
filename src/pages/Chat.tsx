@@ -148,7 +148,7 @@ export default function Chat({ session }: ChatProps) {
         setNewMessage('');
         
         // バックエンドAPIを呼び出し
-        const response = await fetch('http://localhost:3001/api/chat', {
+        const response = await fetch('https://y-chat-8s0q.onrender.com/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
