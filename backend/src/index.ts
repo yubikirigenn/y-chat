@@ -6,7 +6,7 @@ import { HfInference } from '@huggingface/inference';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 
 // Hugging Face API setup
 const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
