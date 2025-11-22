@@ -20,8 +20,6 @@ export default function RoomList({ session }: RoomListProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const user = session.user
-  
-  const ASSISTANT_ROOM_ID = '00000000-0000-0000-0000-000000000001';
 
   // 初回読み込み用（ローディング表示あり）
   const fetchAllData = async () => {
@@ -300,30 +298,6 @@ export default function RoomList({ session }: RoomListProps) {
             </div>
           ) : (
             <>
-              {/* アシスタントルーム（最上位固定） */}
-              <div className="border-b-4 border-gray-600 pb-2 mb-2">
-                <NavLink 
-                  to={`/chat/${ASSISTANT_ROOM_ID}`} 
-                  className={({ isActive }) => 
-                    `flex items-center justify-between p-4 border-b border-gray-700 hover:bg-gray-800 ${
-                      isActive ? 'bg-blue-800' : ''
-                    }`
-                  }
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-lg font-bold">🤖</span>
-                    </div>
-                    <span className="font-semibold">アシスタント</span>
-                  </div>
-                  {(unreadCounts.get(ASSISTANT_ROOM_ID) || 0) > 0 && (
-                    <span className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
-                      {unreadCounts.get(ASSISTANT_ROOM_ID)}
-                    </span>
-                  )}
-                </NavLink>
-              </div>
-
               <h2 className="p-4 text-sm font-semibold text-gray-400">個人チャット</h2>
               <ul>
                 {profiles.map(profile => {
