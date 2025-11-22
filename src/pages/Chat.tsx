@@ -35,13 +35,9 @@ export default function Chat({ session }: ChatProps) {
   const [availableProfiles, setAvailableProfiles] = useState<Profile[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<'V1' | 'V1c'>('V1')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const user = session.user
-  
-  const ASSISTANT_ROOM_ID = '00000000-0000-0000-0000-000000000001'
-  const isAssistantRoom = roomId === ASSISTANT_ROOM_ID
 
   const scrollToBottom = () => { 
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }) 
@@ -134,53 +130,12 @@ export default function Chat({ session }: ChatProps) {
     e.preventDefault();
     if (newMessage.trim() === '' || !roomId) return;
     
-    // アシスタントルームの場合、バックエンドAPIを呼び出す
-    if (isAssistantRoom) {
-      try {
-        // ユーザーメッセージを送信
-        await supabase.from('messages').insert({ 
-          content: newMessage, 
-          user_id: user.id, 
-          room_id: roomId 
-        });
-        
-        const userMessage = newMessage;
-        setNewMessage('');
-        
-        // バックエンドAPIを呼び出し
-        const response = await fetch('https://y-chat-8s0q.onrender.com/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: userMessage,
-            model: selectedModel,
-          }),
-        });
-        
-        const data = await response.json();
-        
-        // AIの応答をメッセージとして保存（システムユーザーとして）
-        await supabase.from('messages').insert({ 
-          content: `[${selectedModel}] ${data.response}`, 
-          user_id: user.id, // 一旦ユーザー自身のIDを使用
-          room_id: roomId 
-        });
-        
-      } catch (error) {
-        console.error('API Error:', error);
-        alert('AIの応答取得に失敗しました。バックエンドが起動していることを確認してください。');
-      }
-    } else {
-      // 通常ルームの場合
-      await supabase.from('messages').insert({ 
-        content: newMessage, 
-        user_id: user.id, 
-        room_id: roomId 
-      });
-      setNewMessage('');
-    }
+    await supabase.from('messages').insert({ 
+      content: newMessage, 
+      user_id: user.id, 
+      room_id: roomId 
+    });
+    setNewMessage('');
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -460,52 +415,35 @@ export default function Chat({ session }: ChatProps) {
           </main>
           
           <footer className="flex items-center p-2 bg-[#f6f7f9] border-t border-gray-300 flex-shrink-0">
-            {isAssistantRoom ? (
-              // アシスタントルーム：モデル選択ドロップアップメニュー
-              <div className="relative">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value as 'V1' | 'V1c')}
-                  className="p-2 bg-white border border-gray-300 rounded text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="V1">V1 (CM-1000)</option>
-                  <option value="V1c">V1c (CM-600)</option>
-                </select>
-              </div>
-            ) : (
-              // 通常ルーム：画像アップロードボタン
-              <>
-                <button 
-                  onClick={() => fileInputRef.current?.click()} 
-                  className="p-2 text-gray-500 hover:text-gray-700" 
-                  disabled={uploading}
-                >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    className="h-6 w-6" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
-                    stroke="currentColor"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" 
-                    />
-                  </svg>
-                </button>
-                
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleImageUpload} 
-                  accept="image/*" 
-                  className="hidden" 
-                  disabled={uploading}
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="p-2 text-gray-500 hover:text-gray-700" 
+              disabled={uploading}
+            >
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="h-6 w-6" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" 
                 />
-              </>
-            )}
+              </svg>
+            </button>
+            
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImageUpload} 
+              accept="image/*" 
+              className="hidden" 
+              disabled={uploading}
+            />
             
             <form onSubmit={handleSendMessage} className="flex-1 flex items-center">
               <input 
