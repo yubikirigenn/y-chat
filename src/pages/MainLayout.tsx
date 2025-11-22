@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import RoomList from './RoomList';
 
 interface MainLayoutProps {
@@ -7,7 +7,6 @@ interface MainLayoutProps {
 
 export default function MainLayout({ session }: MainLayoutProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const isChatOrProfileRoute = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/profile');
 
   return (
