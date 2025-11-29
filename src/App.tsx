@@ -5,6 +5,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import MainLayout from './pages/MainLayout'
 import Chat from './pages/Chat'
 import Profile from './pages/Profile'
+import AdminRoute from './pages/AdminRoute'
+import Studio from './pages/Studio'
 
 function App() {
   const [session, setSession] = useState<any | null>(null)
@@ -23,12 +25,34 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (loading) { return <div className="flex items-center justify-center h-screen bg-gray-800 text-white">読み込み中...</div> }
+  if (loading) { 
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-800 text-white">
+        読み込み中...
+      </div>
+    ) 
+  }
 
   return (
     <Router>
       <Routes>
         <Route path="/auth" element={!session ? <Auth /> : <Navigate to="/" />} />
+        
+        {/* 🎛️ Studio（管理画面） */}
+        <Route 
+          path="/studio" 
+          element={
+            session ? (
+              <AdminRoute session={session}>
+                <Studio session={session} />
+              </AdminRoute>
+            ) : (
+              <Navigate to="/auth" />
+            )
+          } 
+        />
+        
+        {/* メインアプリ */}
         <Route path="/" element={session ? <MainLayout session={session} /> : <Navigate to="/auth" />}>
           <Route path="chat/:roomId" element={<Chat session={session} />} />
           <Route path="profile" element={<Profile session={session} />} />
