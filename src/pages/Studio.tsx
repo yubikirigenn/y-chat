@@ -18,7 +18,7 @@ interface Message {
 
 interface StudioProps { session: any; }
 
-export default function Studio({ session }: StudioProps) {
+export default function Studio({ session: _session }: StudioProps) {
   const [rooms, setRooms] = useState<Room[]>([])
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
