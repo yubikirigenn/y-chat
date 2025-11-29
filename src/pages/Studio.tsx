@@ -95,18 +95,30 @@ export default function Studio({ session: _session }: StudioProps) {
       }
 
       // BAN状態を取得
-      const { data: bansData } = await supabase
+      const { data: bansData, error: bansError } = await supabase
         .from('user_bans')
         .select('*')
         .eq('is_active', true)
 
-      const profilesWithBanStatus = profilesData?.map(profile => ({
-        ...profile,
-        is_banned: bansData?.some(ban => 
+      if (bansError) {
+        console.error('Bans fetch error:', bansError)
+      }
+
+      console.log('📊 BAN data:', bansData) // デバッグ用
+
+      const profilesWithBanStatus = profilesData?.map(profile => {
+        const isBanned = bansData?.some(ban => 
           ban.user_id === profile.id && 
           (ban.expires_at === null || new Date(ban.expires_at) > new Date())
-        )
-      })) || []
+        ) || false
+        
+        console.log(`User ${profile.username}: banned=${isBanned}`) // デバッグ用
+        
+        return {
+          ...profile,
+          is_banned: isBanned
+        }
+      }) || []
 
       setProfiles(profilesWithBanStatus)
     }
@@ -249,16 +261,35 @@ export default function Studio({ session: _session }: StudioProps) {
     const reason = window.prompt('BAN理由（任意）:')
 
     try {
-      const { error } = await supabase
+      // 現在のユーザーIDを取得
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        alert('ユーザー情報の取得に失敗しました')
+        return
+      }
+
+      console.log('🔍 BAN実行:', {
+        user_id: userId,
+        banned_by: user.id,
+        reason: reason || null,
+        expires_at: expiresAt
+      })
+
+      const { data, error } = await supabase
         .from('user_bans')
         .insert({
           user_id: userId,
-          banned_by: (await supabase.auth.getUser()).data.user?.id,
+          banned_by: user.id,
           reason: reason || null,
           expires_at: expiresAt
         })
+        .select()
+
+      console.log('📊 BAN結果:', { data, error })
 
       if (error) {
+        console.error('Ban error detail:', error)
         alert('BAN処理に失敗しました: ' + error.message)
       } else {
         alert('✅ BAN処理が完了しました')
