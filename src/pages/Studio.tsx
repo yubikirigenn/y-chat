@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useNavigate } from 'react-router-dom'
 
-interface Room { id: string; name: string; is_group: boolean; created_at: string; }
+interface Room { 
+  id: string; 
+  name: string; 
+  is_group: boolean; 
+  created_at: string;
+  message_count?: number;
+}
 interface Profile { id: string; username: string; nickname: string | null; }
 interface Message { 
   id: number; 
@@ -26,21 +32,43 @@ export default function Studio({ session: _session }: StudioProps) {
   const [loading, setLoading] = useState(true)
   const [editingMessage, setEditingMessage] = useState<number | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [changingUserId, setChangingUserId] = useState<number | null>(null)
+  const [hideEmptyRooms, setHideEmptyRooms] = useState(false)
   const navigate = useNavigate()
 
-  // 全トークルーム取得
+  // 全トークルーム取得（メッセージ数付き）
   useEffect(() => {
     const fetchRooms = async () => {
-      const { data, error } = await supabase
+      const { data: roomsData, error: roomsError } = await supabase
         .from('rooms')
         .select('id, name, is_group, created_at')
         .order('created_at', { ascending: false })
       
-      if (error) {
-        console.error('Rooms fetch error:', error)
-      } else if (data) {
-        setRooms(data)
+      if (roomsError) {
+        console.error('Rooms fetch error:', roomsError)
+        setLoading(false)
+        return
       }
+
+      if (!roomsData) {
+        setRooms([])
+        setLoading(false)
+        return
+      }
+
+      // 各ルームのメッセージ数を取得
+      const roomsWithCount = await Promise.all(
+        roomsData.map(async (room) => {
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', room.id)
+          
+          return { ...room, message_count: count || 0 }
+        })
+      )
+
+      setRooms(roomsWithCount)
       setLoading(false)
     }
     fetchRooms()
@@ -52,6 +80,7 @@ export default function Studio({ session: _session }: StudioProps) {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, username, nickname')
+        .order('username', { ascending: true })
       
       if (error) {
         console.error('Profiles fetch error:', error)
@@ -159,8 +188,15 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // メッセージ削除
+  // メッセージ削除（ロックチェック付き）
   const handleDeleteMessage = async (messageId: number) => {
+    const message = messages.find(m => m.id === messageId)
+    
+    if (message?.is_locked) {
+      alert('🔒 このメッセージはロックされているため削除できません。\n先にロックを解除してください。')
+      return
+    }
+
     if (!window.confirm('このメッセージを削除しますか？')) return
 
     try {
@@ -203,20 +239,20 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // 発信者変更
-  const handleChangeUser = async (messageId: number, currentUserId: string) => {
-    const newUserId = window.prompt(
-      '新しい発信者のユーザーIDを入力してください\n\n利用可能なユーザー:\n' + 
-      profiles.map(p => `${p.username} (${p.id})`).join('\n'),
-      currentUserId
-    )
+  // 発信者変更（ドロップダウン表示）
+  const handleShowUserChange = (messageId: number) => {
+    setChangingUserId(messageId)
+  }
 
-    if (!newUserId || newUserId === currentUserId) return
+  const handleChangeUser = async (messageId: number, newUserId: string) => {
+    const message = messages.find(m => m.id === messageId)
+    if (message?.user_id === newUserId) {
+      setChangingUserId(null)
+      return
+    }
 
-    // ユーザーIDの存在確認
-    const userExists = profiles.some(p => p.id === newUserId)
-    if (!userExists) {
-      alert('指定されたユーザーIDが見つかりません')
+    if (!window.confirm('発信者を変更しますか？')) {
+      setChangingUserId(null)
       return
     }
 
@@ -230,19 +266,38 @@ export default function Studio({ session: _session }: StudioProps) {
         alert('発信者変更に失敗しました: ' + error.message)
       } else {
         // メッセージを再取得
-        const { data } = await supabase
+        const { data: messagesData } = await supabase
           .from('messages')
-          .select('*, profiles(id, username, nickname)')
+          .select('*')
           .eq('room_id', selectedRoomId)
           .order('created_at', { ascending: true })
         
-        if (data) setMessages(data as any)
+        if (messagesData) {
+          const userIds = [...new Set(messagesData.map(msg => msg.user_id))]
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, username, nickname')
+            .in('id', userIds)
+
+          const messagesWithProfiles = messagesData.map(msg => {
+            const profile = profilesData?.find(p => p.id === msg.user_id)
+            return { ...msg, profiles: profile }
+          })
+
+          setMessages(messagesWithProfiles as any)
+        }
+        setChangingUserId(null)
       }
     } catch (error) {
       console.error('User change error:', error)
       alert('発信者変更中にエラーが発生しました')
     }
   }
+
+  // フィルター済みルーム一覧
+  const filteredRooms = hideEmptyRooms 
+    ? rooms.filter(room => (room.message_count ?? 0) > 0)
+    : rooms
 
   if (loading) {
     return (
@@ -277,12 +332,24 @@ export default function Studio({ session: _session }: StudioProps) {
           </div>
         </header>
 
+        <div className="p-4 bg-gray-800 border-b border-gray-700">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideEmptyRooms}
+              onChange={(e) => setHideEmptyRooms(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span>0件ルームを非表示</span>
+          </label>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-4">
           <h2 className="text-sm font-semibold text-gray-400 mb-3">
-            トークルーム一覧 ({rooms.length})
+            トークルーム一覧 ({filteredRooms.length}/{rooms.length})
           </h2>
           <ul className="space-y-2">
-            {rooms.map(room => (
+            {filteredRooms.map(room => (
               <li
                 key={room.id}
                 onClick={() => setSelectedRoomId(room.id)}
@@ -293,8 +360,9 @@ export default function Studio({ session: _session }: StudioProps) {
                 }`}
               >
                 <div className="font-semibold">{room.name || '名称未設定'}</div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {room.is_group ? '📢 グループ' : '💬 個人'}
+                <div className="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                  <span>{room.is_group ? '📢 グループ' : '💬 個人'}</span>
+                  <span className="font-semibold">{room.message_count}件</span>
                 </div>
               </li>
             ))}
@@ -381,6 +449,27 @@ export default function Studio({ session: _session }: StudioProps) {
                               キャンセル
                             </button>
                           </>
+                        ) : changingUserId === msg.id ? (
+                          <>
+                            <select
+                              onChange={(e) => handleChangeUser(msg.id, e.target.value)}
+                              className="px-3 py-1 bg-purple-600 rounded text-sm text-white"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>発信者を選択...</option>
+                              {profiles.map(profile => (
+                                <option key={profile.id} value={profile.id}>
+                                  {profile.nickname || profile.username}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => setChangingUserId(null)}
+                              className="px-3 py-1 bg-gray-600 rounded text-sm hover:bg-gray-700"
+                            >
+                              キャンセル
+                            </button>
+                          </>
                         ) : (
                           <>
                             {msg.content && (
@@ -402,14 +491,19 @@ export default function Studio({ session: _session }: StudioProps) {
                               {msg.is_locked ? '🔓 解除' : '🔒 ロック'}
                             </button>
                             <button
-                              onClick={() => handleChangeUser(msg.id, msg.user_id)}
+                              onClick={() => handleShowUserChange(msg.id)}
                               className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-700"
                             >
                               👤 発信者変更
                             </button>
                             <button
                               onClick={() => handleDeleteMessage(msg.id)}
-                              className="px-3 py-1 bg-red-600 rounded text-sm hover:bg-red-700"
+                              disabled={msg.is_locked}
+                              className={`px-3 py-1 rounded text-sm ${
+                                msg.is_locked
+                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                  : 'bg-red-600 hover:bg-red-700'
+                              }`}
                             >
                               🗑️ 削除
                             </button>

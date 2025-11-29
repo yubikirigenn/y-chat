@@ -15,6 +15,7 @@ interface Message {
   content: string | null; 
   image_url: string | null; 
   is_deleted: boolean; 
+  is_locked: boolean;
   created_at: string; 
   user_id: string; 
   profiles: Profile | null; 
@@ -205,6 +206,13 @@ export default function Chat({ session }: ChatProps) {
   const handleDeleteMessage = async (messageId: number) => {
     if (window.confirm("メッセージの送信を取り消しますか?")) {
       try {
+        // ロック状態を確認
+        const message = messages.find(m => m.id === messageId)
+        if (message?.is_locked) {
+          alert('このメッセージはロックされているため削除できません。')
+          return
+        }
+
         const { error } = await supabase
           .from('messages')
           .update({ 
