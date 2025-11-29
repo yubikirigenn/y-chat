@@ -26,14 +26,6 @@ interface Message {
   room_id: string;
   profiles?: Profile;
 }
-interface Ban {
-  id: number;
-  user_id: string;
-  reason: string | null;
-  banned_at: string;
-  expires_at: string | null;
-  is_active: boolean;
-}
 
 interface StudioProps { session: any; }
 
@@ -42,7 +34,6 @@ export default function Studio({ session: _session }: StudioProps) {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [bans, setBans] = useState<Ban[]>([])
   const [loading, setLoading] = useState(true)
   const [editingMessage, setEditingMessage] = useState<number | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -118,7 +109,6 @@ export default function Studio({ session: _session }: StudioProps) {
       })) || []
 
       setProfiles(profilesWithBanStatus)
-      setBans(bansData || [])
     }
     fetchProfiles()
   }, [showUserManagement])
