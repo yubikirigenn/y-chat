@@ -67,17 +67,43 @@ export default function Studio({ session: _session }: StudioProps) {
     if (!selectedRoomId) return
 
     const fetchMessages = async () => {
-      const { data, error } = await supabase
+      // 1. メッセージを取得
+      const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
-        .select('*, profiles(id, username, nickname)')
+        .select('*')
         .eq('room_id', selectedRoomId)
         .order('created_at', { ascending: true })
       
-      if (error) {
-        console.error('Messages fetch error:', error)
-      } else if (data) {
-        setMessages(data as any)
+      if (messagesError) {
+        console.error('Messages fetch error:', messagesError)
+        return
       }
+
+      if (!messagesData || messagesData.length === 0) {
+        setMessages([])
+        return
+      }
+
+      // 2. ユーザーIDを抽出
+      const userIds = [...new Set(messagesData.map(msg => msg.user_id))]
+
+      // 3. プロフィールを一括取得
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, nickname')
+        .in('id', userIds)
+
+      if (profilesError) {
+        console.error('Profiles fetch error:', profilesError)
+      }
+
+      // 4. メッセージとプロフィールを結合
+      const messagesWithProfiles = messagesData.map(msg => {
+        const profile = profilesData?.find(p => p.id === msg.user_id)
+        return { ...msg, profiles: profile }
+      })
+
+      setMessages(messagesWithProfiles as any)
     }
     fetchMessages()
   }, [selectedRoomId])
