@@ -7,6 +7,7 @@ import Chat from './pages/Chat'
 import Profile from './pages/Profile'
 import AdminRoute from './pages/AdminRoute'
 import Studio from './pages/Studio'
+import BanChecker from './pages/BanChecker'
 
 function App() {
   const [session, setSession] = useState<any | null>(null)
@@ -52,8 +53,19 @@ function App() {
           } 
         />
         
-        {/* メインアプリ */}
-        <Route path="/" element={session ? <MainLayout session={session} /> : <Navigate to="/auth" />}>
+        {/* メインアプリ（BAN状態チェック付き） */}
+        <Route 
+          path="/" 
+          element={
+            session ? (
+              <BanChecker session={session}>
+                <MainLayout session={session} />
+              </BanChecker>
+            ) : (
+              <Navigate to="/auth" />
+            )
+          }
+        >
           <Route path="chat/:roomId" element={<Chat session={session} />} />
           <Route path="profile" element={<Profile session={session} />} />
           <Route index element={<SelectRoomPlaceholder />} />
