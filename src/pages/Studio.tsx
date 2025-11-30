@@ -47,13 +47,24 @@ export default function Studio({ session: _session }: StudioProps) {
   // 全ユーザー取得（BAN状態付き）
   const fetchProfiles = async () => {
     try {
+      console.log('🔄 fetchProfiles開始')
+      
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, username, nickname')
         .order('username', { ascending: true })
       
+      console.log('👥 profilesData:', profilesData)
+      console.log('❌ profilesError:', profilesError)
+      
       if (profilesError) {
         console.error('Profiles fetch error:', profilesError)
+        return
+      }
+
+      if (!profilesData || profilesData.length === 0) {
+        console.error('⚠️ プロフィールデータが空です')
+        setProfiles([])
         return
       }
 
@@ -69,7 +80,7 @@ export default function Studio({ session: _session }: StudioProps) {
       console.log('📊 全BAN一覧:', bansData)
 
       const now = new Date()
-      const profilesWithBanStatus = (profilesData || []).map(profile => {
+      const profilesWithBanStatus = profilesData.map(profile => {
         const userBans = (bansData || []).filter(ban => ban.user_id === profile.id)
         const hasActiveBan = userBans.some(ban => {
           const isActive = ban.is_active === true
@@ -78,6 +89,7 @@ export default function Studio({ session: _session }: StudioProps) {
         })
         
         console.log(`🔍 ${profile.username}:`, {
+          id: profile.id,
           userBans: userBans.length,
           hasActiveBan,
           is_banned: hasActiveBan
@@ -91,11 +103,12 @@ export default function Studio({ session: _session }: StudioProps) {
         }
       })
 
-      console.log('✅ 最終プロフィール一覧（全データ）:', profilesWithBanStatus)
+      console.log('✅ 最終プロフィール一覧:', profilesWithBanStatus)
 
       setProfiles(profilesWithBanStatus)
+      console.log('💾 setProfiles完了')
     } catch (error) {
-      console.error('fetchProfiles error:', error)
+      console.error('❌ fetchProfiles error:', error)
     }
   }
 
