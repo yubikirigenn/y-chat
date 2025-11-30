@@ -84,15 +84,14 @@ export default function Studio({ session: _session }: StudioProps) {
         })
         
         return {
-          ...profile,
+          id: profile.id,
+          username: profile.username,
+          nickname: profile.nickname,
           is_banned: hasActiveBan
         }
       })
 
-      console.log('✅ 最終プロフィール:', profilesWithBanStatus.map(p => ({
-        username: p.username,
-        is_banned: p.is_banned
-      })))
+      console.log('✅ 最終プロフィール一覧（全データ）:', profilesWithBanStatus)
 
       setProfiles(profilesWithBanStatus)
     } catch (error) {
