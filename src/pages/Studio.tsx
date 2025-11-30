@@ -55,6 +55,9 @@ export default function Studio({ session: _session }: StudioProps) {
         .order('username', { ascending: true })
       
       console.log('👥 profilesData:', profilesData)
+      console.log('👥 profilesData length:', profilesData?.length)
+      console.log('👥 profilesData type:', typeof profilesData)
+      console.log('👥 profilesData isArray:', Array.isArray(profilesData))
       console.log('❌ profilesError:', profilesError)
       
       if (profilesError) {
@@ -78,9 +81,13 @@ export default function Studio({ session: _session }: StudioProps) {
       }
 
       console.log('📊 全BAN一覧:', bansData)
+      console.log('📊 bansData length:', bansData?.length)
 
+      console.log('🚀 map処理開始')
       const now = new Date()
-      const profilesWithBanStatus = profilesData.map(profile => {
+      const profilesWithBanStatus = profilesData.map((profile, index) => {
+        console.log(`🔄 処理中 ${index}:`, profile)
+        
         const userBans = (bansData || []).filter(ban => ban.user_id === profile.id)
         const hasActiveBan = userBans.some(ban => {
           const isActive = ban.is_active === true
@@ -95,13 +102,17 @@ export default function Studio({ session: _session }: StudioProps) {
           is_banned: hasActiveBan
         })
         
-        return {
+        const result = {
           id: profile.id,
           username: profile.username,
           nickname: profile.nickname,
           is_banned: hasActiveBan
         }
+        
+        console.log(`✨ 結果 ${index}:`, result)
+        return result
       })
+      console.log('🏁 map処理完了')
 
       console.log('✅ 最終プロフィール一覧:', profilesWithBanStatus)
 
