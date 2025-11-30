@@ -44,7 +44,66 @@ export default function Studio({ session: _session }: StudioProps) {
   const [newNickname, setNewNickname] = useState('')
   const navigate = useNavigate()
 
-  // 全トークルーム取得（メッセージ数付き）
+  // 全ユーザー取得（BAN状態付き）
+  const fetchProfiles = async () => {
+    try {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, nickname')
+        .order('username', { ascending: true })
+      
+      if (profilesError) {
+        console.error('Profiles fetch error:', profilesError)
+        return
+      }
+
+      const { data: bansData, error: bansError } = await supabase
+        .from('user_bans')
+        .select('*')
+        .eq('is_active', true)
+
+      if (bansError) {
+        console.error('Bans fetch error:', bansError)
+      }
+
+      console.log('📊 全BAN一覧:', bansData)
+
+      const now = new Date()
+      const profilesWithBanStatus = (profilesData || []).map(profile => {
+        const userBans = (bansData || []).filter(ban => ban.user_id === profile.id)
+        const hasActiveBan = userBans.some(ban => {
+          const isActive = ban.is_active === true
+          const notExpired = ban.expires_at === null || new Date(ban.expires_at) > now
+          return isActive && notExpired
+        })
+        
+        console.log(`🔍 ${profile.username}:`, {
+          userBans: userBans.length,
+          hasActiveBan,
+          is_banned: hasActiveBan
+        })
+        
+        return {
+          ...profile,
+          is_banned: hasActiveBan
+        }
+      })
+
+      console.log('✅ 最終プロフィール:', profilesWithBanStatus.map(p => ({
+        username: p.username,
+        is_banned: p.is_banned
+      })))
+
+      setProfiles(profilesWithBanStatus)
+    } catch (error) {
+      console.error('fetchProfiles error:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchProfiles()
+  }, [showUserManagement])
+
   useEffect(() => {
     const fetchRooms = async () => {
       const { data: roomsData, error: roomsError } = await supabase
@@ -81,51 +140,6 @@ export default function Studio({ session: _session }: StudioProps) {
     fetchRooms()
   }, [])
 
-  // 全ユーザー取得（BAN状態付き）
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, username, nickname')
-        .order('username', { ascending: true })
-      
-      if (profilesError) {
-        console.error('Profiles fetch error:', profilesError)
-        return
-      }
-
-      // BAN状態を取得
-      const { data: bansData, error: bansError } = await supabase
-        .from('user_bans')
-        .select('*')
-        .eq('is_active', true)
-
-      if (bansError) {
-        console.error('Bans fetch error:', bansError)
-      }
-
-      console.log('📊 BAN data:', bansData) // デバッグ用
-
-      const profilesWithBanStatus = profilesData?.map(profile => {
-        const isBanned = bansData?.some(ban => 
-          ban.user_id === profile.id && 
-          (ban.expires_at === null || new Date(ban.expires_at) > new Date())
-        ) || false
-        
-        console.log(`User ${profile.username}: banned=${isBanned}`) // デバッグ用
-        
-        return {
-          ...profile,
-          is_banned: isBanned
-        }
-      }) || []
-
-      setProfiles(profilesWithBanStatus)
-    }
-    fetchProfiles()
-  }, [showUserManagement])
-
-  // 選択されたルームのメッセージ取得
   useEffect(() => {
     if (!selectedRoomId) return
 
@@ -147,15 +161,10 @@ export default function Studio({ session: _session }: StudioProps) {
       }
 
       const userIds = [...new Set(messagesData.map(msg => msg.user_id))]
-
-      const { data: profilesData, error: profilesError } = await supabase
+      const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, username, nickname')
         .in('id', userIds)
-
-      if (profilesError) {
-        console.error('Profiles fetch error:', profilesError)
-      }
 
       const messagesWithProfiles = messagesData.map(msg => {
         const profile = profilesData?.find(p => p.id === msg.user_id)
@@ -167,7 +176,6 @@ export default function Studio({ session: _session }: StudioProps) {
     fetchMessages()
   }, [selectedRoomId])
 
-  // 🚨 緊急停止ボタン
   const handleEmergencyStop = async () => {
     if (!window.confirm('🚨 緊急停止しますか？\n\n全ユーザーのStudioアクセスがブロックされます。\n解除するにはSupabaseで手動操作が必要です。')) {
       return
@@ -191,7 +199,6 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // ニックネーム変更
   const handleEditNickname = (userId: string, currentNickname: string | null) => {
     setEditingNickname(userId)
     setNewNickname(currentNickname || '')
@@ -218,7 +225,6 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // BAN機能
   const handleBanUser = async (userId: string) => {
     const profile = profiles.find(p => p.id === userId)
     if (!profile) return
@@ -235,46 +241,25 @@ export default function Studio({ session: _session }: StudioProps) {
     const now = new Date()
 
     switch(duration) {
-      case '1':
-        expiresAt = new Date(now.getTime() + 60 * 1000).toISOString()
-        break
-      case '2':
-        expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString()
-        break
-      case '3':
-        expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString()
-        break
-      case '4':
-        expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
-        break
-      case '5':
-        expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString()
-        break
-      case '6':
-        expiresAt = null
-        break
-      default:
-        alert('無効な選択です')
-        return
+      case '1': expiresAt = new Date(now.getTime() + 60 * 1000).toISOString(); break
+      case '2': expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString(); break
+      case '3': expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); break
+      case '4': expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(); break
+      case '5': expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(); break
+      case '6': expiresAt = null; break
+      default: alert('無効な選択です'); return
     }
 
     const reason = window.prompt('BAN理由（任意）:')
 
     try {
-      // 現在のユーザーIDを取得
       const { data: { user } } = await supabase.auth.getUser()
-      
       if (!user) {
         alert('ユーザー情報の取得に失敗しました')
         return
       }
 
-      console.log('🔍 BAN実行:', {
-        user_id: userId,
-        banned_by: user.id,
-        reason: reason || null,
-        expires_at: expiresAt
-      })
+      console.log('🔍 BAN実行:', { user_id: userId, banned_by: user.id, expires_at: expiresAt })
 
       const { data, error } = await supabase
         .from('user_bans')
@@ -292,10 +277,9 @@ export default function Studio({ session: _session }: StudioProps) {
         console.error('Ban error detail:', error)
         alert('BAN処理に失敗しました: ' + error.message)
       } else {
+        console.log('✅ BAN成功、ユーザーリスト再取得')
         alert('✅ BAN処理が完了しました')
-        // ユーザーリストを再取得
-        setShowUserManagement(false)
-        setTimeout(() => setShowUserManagement(true), 100)
+        await fetchProfiles()
       }
     } catch (error) {
       console.error('Ban error:', error)
@@ -303,12 +287,9 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // BAN解除
   const handleUnbanUser = async (userId: string) => {
     const profile = profiles.find(p => p.id === userId)
-    if (!profile) return
-
-    if (!window.confirm(`${profile.nickname || profile.username} のBANを解除しますか？`)) {
+    if (!profile || !window.confirm(`${profile.nickname || profile.username} のBANを解除しますか？`)) {
       return
     }
 
@@ -323,8 +304,7 @@ export default function Studio({ session: _session }: StudioProps) {
         alert('BAN解除に失敗しました: ' + error.message)
       } else {
         alert('✅ BAN解除が完了しました')
-        setShowUserManagement(false)
-        setTimeout(() => setShowUserManagement(true), 100)
+        await fetchProfiles()
       }
     } catch (error) {
       console.error('Unban error:', error)
@@ -332,7 +312,6 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // メッセージ編集
   const handleEditMessage = (messageId: number, currentContent: string) => {
     setEditingMessage(messageId)
     setEditContent(currentContent)
@@ -359,7 +338,6 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // メッセージ削除（ロックチェック付き）
   const handleDeleteMessage = async (messageId: number) => {
     const message = messages.find(m => m.id === messageId)
     
@@ -389,7 +367,6 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // メッセージロック/解除
   const handleToggleLock = async (messageId: number, currentLockState: boolean) => {
     try {
       const { error } = await supabase
@@ -410,7 +387,6 @@ export default function Studio({ session: _session }: StudioProps) {
     }
   }
 
-  // 発信者変更
   const handleShowUserChange = (messageId: number) => {
     setChangingUserId(messageId)
   }
@@ -481,139 +457,70 @@ export default function Studio({ session: _session }: StudioProps) {
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
-      {/* 左サイドバー */}
       <aside className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
         <header className="p-4 bg-gray-950 border-b border-gray-700">
           <h1 className="text-xl font-bold mb-2">🎛️ Y-Chat Studio</h1>
           <div className="flex gap-2 mb-2">
-            <button
-              onClick={() => navigate('/')}
-              className="flex-1 px-3 py-2 bg-blue-600 rounded text-sm hover:bg-blue-700"
-            >
-              ホーム
-            </button>
-            <button
-              onClick={handleEmergencyStop}
-              className="flex-1 px-3 py-2 bg-red-600 rounded text-sm hover:bg-red-700 font-bold"
-            >
-              🚨 緊急停止
-            </button>
+            <button onClick={() => navigate('/')} className="flex-1 px-3 py-2 bg-blue-600 rounded text-sm hover:bg-blue-700">ホーム</button>
+            <button onClick={handleEmergencyStop} className="flex-1 px-3 py-2 bg-red-600 rounded text-sm hover:bg-red-700 font-bold">🚨 緊急停止</button>
           </div>
-          <button
-            onClick={() => setShowUserManagement(!showUserManagement)}
-            className="w-full px-3 py-2 bg-purple-600 rounded text-sm hover:bg-purple-700"
-          >
+          <button onClick={() => setShowUserManagement(!showUserManagement)} className="w-full px-3 py-2 bg-purple-600 rounded text-sm hover:bg-purple-700">
             {showUserManagement ? '📋 ルーム一覧' : '👥 ユーザー管理'}
           </button>
         </header>
 
         {showUserManagement ? (
-          /* ユーザー管理画面 */
           <div className="flex-1 overflow-y-auto p-4">
-            <h2 className="text-sm font-semibold text-gray-400 mb-3">
-              ユーザー一覧 ({profiles.length})
-            </h2>
+            <h2 className="text-sm font-semibold text-gray-400 mb-3">ユーザー一覧 ({profiles.length})</h2>
             <ul className="space-y-2">
-              {profiles.map(profile => (
-                <li
-                  key={profile.id}
-                  className={`p-3 rounded border ${
-                    profile.is_banned
-                      ? 'bg-red-900 border-red-700'
-                      : 'bg-gray-700 border-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="font-semibold flex items-center gap-2">
-                        {profile.nickname || profile.username}
-                        {profile.is_banned && <span className="text-red-400">🚫</span>}
+              {profiles.map(profile => {
+                console.log(`🎨 Rendering ${profile.username}:`, profile.is_banned)
+                return (
+                  <li key={profile.id} className={`p-3 rounded border ${profile.is_banned ? 'bg-red-900 border-red-700' : 'bg-gray-700 border-gray-600'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {profile.nickname || profile.username}
+                          {profile.is_banned && <span className="text-red-400">🚫</span>}
+                        </div>
+                        <div className="text-xs text-gray-400">@{profile.username}</div>
                       </div>
-                      <div className="text-xs text-gray-400">@{profile.username}</div>
                     </div>
-                  </div>
 
-                  {editingNickname === profile.id ? (
-                    <div className="flex gap-2 mt-2">
-                      <input
-                        type="text"
-                        value={newNickname}
-                        onChange={(e) => setNewNickname(e.target.value)}
-                        className="flex-1 px-2 py-1 bg-gray-600 rounded text-sm"
-                        placeholder="新しいニックネーム"
-                      />
-                      <button
-                        onClick={() => handleSaveNickname(profile.id)}
-                        className="px-2 py-1 bg-green-600 rounded text-xs hover:bg-green-700"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => setEditingNickname(null)}
-                        className="px-2 py-1 bg-gray-600 rounded text-xs hover:bg-gray-700"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={() => handleEditNickname(profile.id, profile.nickname)}
-                        className="flex-1 px-2 py-1 bg-blue-600 rounded text-xs hover:bg-blue-700"
-                      >
-                        ✏️ ニックネーム
-                      </button>
-                      {profile.is_banned ? (
-                        <button
-                          onClick={() => handleUnbanUser(profile.id)}
-                          className="flex-1 px-2 py-1 bg-green-600 rounded text-xs hover:bg-green-700"
-                        >
-                          ✅ BAN解除
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleBanUser(profile.id)}
-                          className="flex-1 px-2 py-1 bg-red-600 rounded text-xs hover:bg-red-700"
-                        >
-                          🚫 BAN
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
+                    {editingNickname === profile.id ? (
+                      <div className="flex gap-2 mt-2">
+                        <input type="text" value={newNickname} onChange={(e) => setNewNickname(e.target.value)} className="flex-1 px-2 py-1 bg-gray-600 rounded text-sm" placeholder="新しいニックネーム" />
+                        <button onClick={() => handleSaveNickname(profile.id)} className="px-2 py-1 bg-green-600 rounded text-xs hover:bg-green-700">保存</button>
+                        <button onClick={() => setEditingNickname(null)} className="px-2 py-1 bg-gray-600 rounded text-xs hover:bg-gray-700">×</button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => handleEditNickname(profile.id, profile.nickname)} className="flex-1 px-2 py-1 bg-blue-600 rounded text-xs hover:bg-blue-700">✏️ ニックネーム</button>
+                        {profile.is_banned ? (
+                          <button onClick={() => handleUnbanUser(profile.id)} className="flex-1 px-2 py-1 bg-green-600 rounded text-xs hover:bg-green-700">✅ BAN解除</button>
+                        ) : (
+                          <button onClick={() => handleBanUser(profile.id)} className="flex-1 px-2 py-1 bg-red-600 rounded text-xs hover:bg-red-700">🚫 BAN</button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </div>
         ) : (
-          /* ルーム一覧画面 */
           <>
             <div className="p-4 bg-gray-800 border-b border-gray-700">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hideEmptyRooms}
-                  onChange={(e) => setHideEmptyRooms(e.target.checked)}
-                  className="w-4 h-4"
-                />
+                <input type="checkbox" checked={hideEmptyRooms} onChange={(e) => setHideEmptyRooms(e.target.checked)} className="w-4 h-4" />
                 <span>0件ルームを非表示</span>
               </label>
             </div>
-
             <div className="flex-1 overflow-y-auto p-4">
-              <h2 className="text-sm font-semibold text-gray-400 mb-3">
-                トークルーム一覧 ({filteredRooms.length}/{rooms.length})
-              </h2>
+              <h2 className="text-sm font-semibold text-gray-400 mb-3">トークルーム一覧 ({filteredRooms.length}/{rooms.length})</h2>
               <ul className="space-y-2">
                 {filteredRooms.map(room => (
-                  <li
-                    key={room.id}
-                    onClick={() => setSelectedRoomId(room.id)}
-                    className={`p-3 rounded cursor-pointer transition ${
-                      selectedRoomId === room.id
-                        ? 'bg-blue-600'
-                        : 'bg-gray-700 hover:bg-gray-600'
-                    }`}
-                  >
+                  <li key={room.id} onClick={() => setSelectedRoomId(room.id)} className={`p-3 rounded cursor-pointer transition ${selectedRoomId === room.id ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
                     <div className="font-semibold">{room.name || '名称未設定'}</div>
                     <div className="text-xs text-gray-400 mt-1 flex items-center justify-between">
                       <span>{room.is_group ? '📢 グループ' : '💬 個人'}</span>
@@ -627,140 +534,60 @@ export default function Studio({ session: _session }: StudioProps) {
         )}
       </aside>
 
-      {/* メインコンテンツ */}
       <main className="flex-1 flex flex-col">
         {!showUserManagement && selectedRoomId ? (
           <>
             <header className="p-4 bg-gray-800 border-b border-gray-700">
-              <h2 className="text-lg font-bold">
-                {rooms.find(r => r.id === selectedRoomId)?.name || '選択中のルーム'}
-              </h2>
-              <p className="text-sm text-gray-400 mt-1">
-                メッセージ数: {messages.length}件
-              </p>
+              <h2 className="text-lg font-bold">{rooms.find(r => r.id === selectedRoomId)?.name || '選択中のルーム'}</h2>
+              <p className="text-sm text-gray-400 mt-1">メッセージ数: {messages.length}件</p>
             </header>
-
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {messages.map(msg => (
-                <div
-                  key={msg.id}
-                  className={`p-4 rounded-lg border ${
-                    msg.is_deleted
-                      ? 'bg-gray-800 border-gray-700'
-                      : msg.is_locked
-                      ? 'bg-yellow-900 border-yellow-700'
-                      : 'bg-gray-800 border-gray-600'
-                  }`}
-                >
+                <div key={msg.id} className={`p-4 rounded-lg border ${msg.is_deleted ? 'bg-gray-800 border-gray-700' : msg.is_locked ? 'bg-yellow-900 border-yellow-700' : 'bg-gray-800 border-gray-600'}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">
-                        {msg.profiles?.nickname || msg.profiles?.username || '不明'}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        ({msg.user_id.substring(0, 8)}...)
-                      </span>
+                      <span className="font-semibold">{msg.profiles?.nickname || msg.profiles?.username || '不明'}</span>
+                      <span className="text-xs text-gray-400">({msg.user_id.substring(0, 8)}...)</span>
                       {msg.is_locked && <span className="text-yellow-400">🔒</span>}
                       {msg.is_deleted && <span className="text-red-400">🗑️</span>}
                     </div>
-                    <span className="text-xs text-gray-400">
-                      {new Date(msg.created_at).toLocaleString('ja-JP')}
-                    </span>
+                    <span className="text-xs text-gray-400">{new Date(msg.created_at).toLocaleString('ja-JP')}</span>
                   </div>
-
                   <div className="mb-3">
                     {msg.is_deleted ? (
                       <p className="text-gray-500 italic">メッセージの送信を取り消しました</p>
                     ) : editingMessage === msg.id ? (
-                      <textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        className="w-full p-2 bg-gray-700 rounded text-white"
-                        rows={3}
-                      />
+                      <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full p-2 bg-gray-700 rounded text-white" rows={3} />
                     ) : msg.image_url ? (
                       <img src={msg.image_url} alt="送信画像" className="max-w-md rounded" />
                     ) : (
                       <p className="text-gray-200">{msg.content}</p>
                     )}
                   </div>
-
                   <div className="flex gap-2 flex-wrap">
                     {!msg.is_deleted && (
                       <>
                         {editingMessage === msg.id ? (
                           <>
-                            <button
-                              onClick={() => handleSaveEdit(msg.id)}
-                              className="px-3 py-1 bg-green-600 rounded text-sm hover:bg-green-700"
-                            >
-                              保存
-                            </button>
-                            <button
-                              onClick={() => setEditingMessage(null)}
-                              className="px-3 py-1 bg-gray-600 rounded text-sm hover:bg-gray-700"
-                            >
-                              キャンセル
-                            </button>
+                            <button onClick={() => handleSaveEdit(msg.id)} className="px-3 py-1 bg-green-600 rounded text-sm hover:bg-green-700">保存</button>
+                            <button onClick={() => setEditingMessage(null)} className="px-3 py-1 bg-gray-600 rounded text-sm hover:bg-gray-700">キャンセル</button>
                           </>
                         ) : changingUserId === msg.id ? (
                           <>
-                            <select
-                              onChange={(e) => handleChangeUser(msg.id, e.target.value)}
-                              className="px-3 py-1 bg-purple-600 rounded text-sm text-white"
-                              defaultValue=""
-                            >
+                            <select onChange={(e) => handleChangeUser(msg.id, e.target.value)} className="px-3 py-1 bg-purple-600 rounded text-sm text-white" defaultValue="">
                               <option value="" disabled>発信者を選択...</option>
                               {profiles.map(profile => (
-                                <option key={profile.id} value={profile.id}>
-                                  {profile.nickname || profile.username}
-                                </option>
+                                <option key={profile.id} value={profile.id}>{profile.nickname || profile.username}</option>
                               ))}
                             </select>
-                            <button
-                              onClick={() => setChangingUserId(null)}
-                              className="px-3 py-1 bg-gray-600 rounded text-sm hover:bg-gray-700"
-                            >
-                              キャンセル
-                            </button>
+                            <button onClick={() => setChangingUserId(null)} className="px-3 py-1 bg-gray-600 rounded text-sm hover:bg-gray-700">キャンセル</button>
                           </>
                         ) : (
                           <>
-                            {msg.content && (
-                              <button
-                                onClick={() => handleEditMessage(msg.id, msg.content!)}
-                                className="px-3 py-1 bg-blue-600 rounded text-sm hover:bg-blue-700"
-                              >
-                                ✏️ 編集
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleToggleLock(msg.id, msg.is_locked)}
-                              className={`px-3 py-1 rounded text-sm ${
-                                msg.is_locked
-                                  ? 'bg-yellow-600 hover:bg-yellow-700'
-                                  : 'bg-gray-600 hover:bg-gray-700'
-                              }`}
-                            >
-                              {msg.is_locked ? '🔓 解除' : '🔒 ロック'}
-                            </button>
-                            <button
-                              onClick={() => handleShowUserChange(msg.id)}
-                              className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-700"
-                            >
-                              👤 発信者変更
-                            </button>
-                            <button
-                              onClick={() => handleDeleteMessage(msg.id)}
-                              disabled={msg.is_locked}
-                              className={`px-3 py-1 rounded text-sm ${
-                                msg.is_locked
-                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                  : 'bg-red-600 hover:bg-red-700'
-                              }`}
-                            >
-                              🗑️ 削除
-                            </button>
+                            {msg.content && <button onClick={() => handleEditMessage(msg.id, msg.content!)} className="px-3 py-1 bg-blue-600 rounded text-sm hover:bg-blue-700">✏️ 編集</button>}
+                            <button onClick={() => handleToggleLock(msg.id, msg.is_locked)} className={`px-3 py-1 rounded text-sm ${msg.is_locked ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-600 hover:bg-gray-700'}`}>{msg.is_locked ? '🔓 解除' : '🔒 ロック'}</button>
+                            <button onClick={() => handleShowUserChange(msg.id)} className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-700">👤 発信者変更</button>
+                            <button onClick={() => handleDeleteMessage(msg.id)} disabled={msg.is_locked} className={`px-3 py-1 rounded text-sm ${msg.is_locked ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}>🗑️ 削除</button>
                           </>
                         )}
                       </>
@@ -768,26 +595,16 @@ export default function Studio({ session: _session }: StudioProps) {
                   </div>
                 </div>
               ))}
-
               {messages.length === 0 && (
-                <div className="text-center text-gray-500 py-20">
-                  このルームにはメッセージがありません
-                </div>
+                <div className="text-center text-gray-500 py-20">このルームにはメッセージがありません</div>
               )}
             </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
-              <div className="text-6xl mb-4">
-                {showUserManagement ? '👥' : '💬'}
-              </div>
-              <p className="text-lg">
-                {showUserManagement 
-                  ? 'ユーザー管理画面' 
-                  : '左からトークルームを選択してください'
-                }
-              </p>
+              <div className="text-6xl mb-4">{showUserManagement ? '👥' : '💬'}</div>
+              <p className="text-lg">{showUserManagement ? 'ユーザー管理画面' : '左からトークルームを選択してください'}</p>
             </div>
           </div>
         )}
