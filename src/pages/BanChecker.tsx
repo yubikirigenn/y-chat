@@ -17,9 +17,12 @@ export default function BanChecker({ session, children }: BanCheckerProps) {
   useEffect(() => {
     const checkBanStatus = async () => {
       if (!user) {
+        console.log('❌ BanChecker: ユーザーなし')
         setLoading(false)
         return
       }
+
+      console.log('🔍 BanChecker: チェック開始', { userId: user.id, email: user.email })
 
       try {
         // BAN状態を確認
@@ -32,6 +35,8 @@ export default function BanChecker({ session, children }: BanCheckerProps) {
           .limit(1)
           .single()
 
+        console.log('📊 BAN問い合わせ結果:', { banData, error })
+
         if (error && error.code !== 'PGRST116') {
           console.error('Ban check error:', error)
         }
@@ -41,19 +46,29 @@ export default function BanChecker({ session, children }: BanCheckerProps) {
           const now = new Date()
           const expiresAt = banData.expires_at ? new Date(banData.expires_at) : null
           
+          console.log('⏰ 期限チェック:', {
+            now: now.toISOString(),
+            expiresAt: expiresAt?.toISOString(),
+            isPermanent: !expiresAt,
+            isExpired: expiresAt && expiresAt <= now
+          })
+          
           if (!expiresAt || expiresAt > now) {
             // BANが有効
+            console.log('🚫 BAN有効！')
             setIsBanned(true)
             setBanInfo(banData)
           } else {
             // 期限切れ
+            console.log('✅ BAN期限切れ')
             setIsBanned(false)
           }
         } else {
+          console.log('✅ BANデータなし')
           setIsBanned(false)
         }
       } catch (error) {
-        console.error('Ban check error:', error)
+        console.error('❌ Ban check error:', error)
         setIsBanned(false)
       } finally {
         setLoading(false)
